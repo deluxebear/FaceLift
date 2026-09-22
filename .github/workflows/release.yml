@@ -14,10 +14,12 @@ jobs:
     runs-on: macos-15
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -101,17 +103,70 @@ jobs:
           xcrun stapler validate build/FaceLift.app
 
       - name: Upload DMG artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: FaceLift-${{ steps.version.outputs.version }}-dmg
           path: build/FaceLift.dmg
 
+      - name: Generate categorized release notes
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          PREV_TAG="$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)"
+          if [ -n "$PREV_TAG" ]; then
+            RANGE="${PREV_TAG}..${GITHUB_REF_NAME}"
+          else
+            RANGE="${GITHUB_REF_NAME}"
+          fi
+          COMMITS="$RUNNER_TEMP/commits.txt"
+          NOTES="$RUNNER_TEMP/release-notes.md"
+          git log --no-merges --pretty='%H|%s' "$RANGE" > "$COMMITS"
+
+          section() {
+            local title="$1" pattern="$2"
+            local body
+            body=$(awk -F'|' -v pat="$pattern" -v repo="$GITHUB_REPOSITORY" \
+              '$2 ~ pat { printf "- %s ([%s](https://github.com/%s/commit/%s))\n", $2, substr($1,1,7), repo, $1 }' \
+              "$COMMITS")
+            if [ -n "$body" ]; then
+              printf '### %s\n\n%s\n\n' "$title" "$body" >> "$NOTES"
+            fi
+          }
+
+          echo "## What's Changed / 更新内容" > "$NOTES"
+          echo >> "$NOTES"
+          section "✨ New Features / 新功能"   '^feat[(:!]'
+          section "🐛 Bug Fixes / 修复"       '^fix[(:!]'
+          section "⚡ Performance / 性能"     '^perf[(:]'
+          section "🔧 Refactoring / 重构"     '^refactor[(:]'
+          section "📖 Documentation / 文档"   '^docs[(:]'
+          section "🧪 Tests / 测试"           '^test[(:]'
+          section "🏗️ Build & CI / 构建"      '^(build|ci)[(:]'
+          section "🧹 Chores / 杂项"          '^(chore|style|revert)[(:]'
+
+          # Anything that does not follow a conventional-commit prefix.
+          OTHER=$(awk -F'|' -v repo="$GITHUB_REPOSITORY" \
+            '$2 !~ /^(feat|fix|perf|refactor|docs|test|build|ci|chore|style|revert)[(:]/ { printf "- %s ([%s](https://github.com/%s/commit/%s))\n", $2, substr($1,1,7), repo, $1 }' \
+            "$COMMITS")
+          if [ -n "$OTHER" ]; then
+            printf '### 📦 Other / 其他\n\n%s\n\n' "$OTHER" >> "$NOTES"
+          fi
+
+          if [ -n "$PREV_TAG" ]; then
+            echo "**Full Changelog**: https://github.com/${GITHUB_REPOSITORY}/compare/${PREV_TAG}...${GITHUB_REF_NAME}" >> "$NOTES"
+          fi
+          echo "--- release notes preview ---"
+          cat "$NOTES"
+
       - name: Publish GitHub Release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
-        with:
-          name: FaceLift ${{ steps.version.outputs.version }}
-          files: build/FaceLift.dmg
-          generate_release_notes: true
-          draft: false
-          prerelease: ${{ contains(github.ref_name, '-') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          PRERELEASE_FLAG=""
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then PRERELEASE_FLAG="--prerelease"; fi
+          gh release create "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "FaceLift ${GITHUB_REF_NAME#v}" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
+            $PRERELEASE_FLAG \
+            build/FaceLift.dmg
