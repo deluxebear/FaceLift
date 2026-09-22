@@ -116,7 +116,9 @@ class CardFlashTests(unittest.TestCase):
             output = io.StringIO()
 
             with (
+                patch.object(facelift_backend, "write_files_batch", Mock(return_value=False)),
                 patch.object(facelift_backend, "write_file", write_file),
+                patch.object(facelift_backend, "remove_files", Mock(return_value=True)),
                 redirect_stdout(output),
             ):
                 result = facelift_backend.cmd_flash(UDID, CARD, str(image_path))
