@@ -72,6 +72,17 @@
 5. 点击**写入卡面**。
 6. 在 iPhone 的 App 切换器中强制关闭 **Wallet** 应用(或重启手机),即可看到新的自定义卡面!
 
+### 扫描不到卡片时
+
+扫描器读取 iPhone 的统一日志(unified log),包括 Info/Debug 级别事件。
+在 iOS 18.6.2 上,旧的日志服务虽然能看到 Wallet 活动,却会漏掉包含卡片标识的资源查找消息。
+
+打开**日志**,确认出现 `Connected to the unified device log stream`,然后双击侧边按钮、
+完成验证,再点按或切换卡片。如果日志读取中断,请重新连接并解锁 iPhone 后再次扫描。
+被 iOS 替换成 `<private>` 的值无法由扫描器还原。
+
+验证环境与尚未覆盖的情况见[扫描器验证记录](docs/wallet-card-detection.md)(英文)。
+
 ---
 
 ## 如何应用锁屏密码主题(.passthm)

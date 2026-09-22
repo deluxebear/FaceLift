@@ -416,3 +416,8 @@
 "Saving original artwork from iPhone..." = "正在从 iPhone 保存原始卡面…";
 "This card does not belong to the connected iPhone." = "这张卡不属于当前连接的 iPhone。";
 "Original artwork has not been saved yet." = "尚未保存原始卡面。";
+"Could not start card scanning." = "无法开始扫描卡片。";
+"Syslog monitor failed to start: %@" = "系统日志监听启动失败：%@";
+"Card scanning ended. Check the log and reconnect the iPhone to retry." = "卡片扫描已结束。请查看日志，重新连接 iPhone 后重试。";
+"Syslog monitor exited (status %@). Total cards: %@." = "系统日志监听已退出（状态 %@）。共 %@ 张卡片。";
+"Card scanning failed. Check the log and retry." = "卡片扫描失败。请查看日志后重试。";

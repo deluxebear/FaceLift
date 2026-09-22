@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #import "airlift_target.h"
+#import "os_trace.h"
 
 typedef const void *AMDeviceRef;
 typedef const void *AMDeviceNotificationRef;
@@ -53,6 +54,8 @@ extern int AMDServiceConnectionInvalidate(AMDServiceConnectionRef connection);
 extern int AMDServiceConnectionSend(AMDServiceConnectionRef connection,
                                     const void *bytes,
                                     size_t length);
+extern long AMDServiceConnectionReceive(AMDServiceConnectionRef connection,
+                                        void *bytes, long length);
 extern int AMDServiceConnectionSendMessage(AMDServiceConnectionRef connection,
                                            CFTypeRef message,
                                            CFPropertyListFormat format);
@@ -346,39 +349,89 @@ static int ListDevices(void) {
     return status == 0 ? 0 : 2;
 }
 
+static int StreamDeviceLogs(AMDServiceConnectionRef connection) {
+    // syslog_relay omits the Info/Debug resource lookups containing Wallet card
+    // identifiers on iOS 18. Request the unified activity stream instead.
+    NSDictionary *request = @{
+        @"Request": @"StartActivity",
+        @"Pid": @(UINT32_MAX),
+        @"MessageFilter": @0xFFFF,
+        @"StreamFlags": @0x3C, // Payload, historical, callstack and debug events.
+    };
+    if (AMDServiceConnectionSendMessage(connection,
+            (__bridge CFDictionaryRef)request, kCFPropertyListBinaryFormat_v1_0) != 0) {
+        fprintf(stderr, "FaceLift scanner: Could not request device log streaming.\n");
+        return 2;
+    }
+
+    uint8_t type = 0;
+    NSString *error = nil;
+    NSData *reply = AirCardTraceReadFrame(AMDServiceConnectionReceive, connection,
+                                         &type, &error);
+    id status = reply && type == 1
+        ? [NSPropertyListSerialization propertyListWithData:reply
+              options:NSPropertyListImmutable format:NULL error:NULL] : nil;
+    if (![status isKindOfClass:NSDictionary.class] ||
+        ![status[@"Status"] isEqual:@"RequestSuccessful"]) {
+        fprintf(stderr, "FaceLift scanner: %s\n",
+                (error ?: @"The device refused to start log streaming.").UTF8String);
+        return 2;
+    }
+
+    fprintf(stderr, "FaceLift scanner: Connected to the unified device log stream.\n");
+    while (YES) {
+        @autoreleasepool {
+            NSData *record = AirCardTraceReadFrame(AMDServiceConnectionReceive,
+                                                   connection, &type, &error);
+            if (!record) {
+                fprintf(stderr, "FaceLift scanner: %s\n", error.UTF8String);
+                return 2;
+            }
+            if (type != 2) continue;
+            NSString *line = AirCardTraceLogLine(record);
+            if (line) {
+                NSData *data = [line dataUsingEncoding:NSUTF8StringEncoding];
+                if (fwrite(data.bytes, 1, data.length, stdout) != data.length ||
+                    fflush(stdout) != 0) return 2;
+            }
+        }
+    }
+}
+
 static int RunSyslog(void) {
-    if (FindTarget() != 0 || !TargetDevice) return 2;
+    if (FindTarget() != 0 || !TargetDevice) {
+        fprintf(stderr, "FaceLift scanner: iPhone not found. Reconnect it via USB.\n");
+        return 2;
+    }
     AMDeviceRef device = TargetDevice;
-    if (AMDeviceConnect(device) != 0) return 2;
+    if (AMDeviceConnect(device) != 0) {
+        fprintf(stderr, "FaceLift scanner: Could not connect to the iPhone.\n");
+        return 2;
+    }
     if (!AMDeviceIsPaired(device)) AMDevicePair(device);
     if (AMDeviceValidatePairing(device) != 0 || AMDeviceStartSession(device) != 0) {
+        fprintf(stderr, "FaceLift scanner: Unlock the iPhone and trust this Mac, then retry.\n");
         AMDeviceDisconnect(device);
         return 2;
     }
 
     AMDServiceConnectionRef connection = NULL;
     if (AMDeviceSecureStartService(
-            device, CFSTR("com.apple.syslog_relay"), NULL, &connection) != 0 ||
+            device, CFSTR("com.apple.os_trace_relay"), NULL, &connection) != 0 ||
         !connection) {
+        fprintf(stderr, "FaceLift scanner: Could not open the device log service. Unlock the iPhone and retry.\n");
         AMDeviceStopSession(device);
         AMDeviceDisconnect(device);
         return 2;
     }
 
     signal(SIGPIPE, SIG_IGN);
-    int sock = AMDServiceConnectionGetSocket(connection);
-    char buffer[65536];
-    while (sock >= 0) {
-        ssize_t received = recv(sock, buffer, sizeof(buffer), 0);
-        if (received <= 0) break;
-        fwrite(buffer, 1, (size_t)received, stdout);
-        fflush(stdout);
-    }
+    int status = StreamDeviceLogs(connection);
 
     AMDServiceConnectionInvalidate(connection);
     AMDeviceStopSession(device);
     AMDeviceDisconnect(device);
-    return 0;
+    return status;
 }
 
 static void OpenSession(DeviceSession *session) {

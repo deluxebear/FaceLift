@@ -416,3 +416,8 @@
 "Saving original artwork from iPhone..." = "Saving original artwork from iPhone...";
 "This card does not belong to the connected iPhone." = "This card does not belong to the connected iPhone.";
 "Original artwork has not been saved yet." = "Original artwork has not been saved yet.";
+"Could not start card scanning." = "Could not start card scanning.";
+"Syslog monitor failed to start: %@" = "Syslog monitor failed to start: %@";
+"Card scanning ended. Check the log and reconnect the iPhone to retry." = "Card scanning ended. Check the log and reconnect the iPhone to retry.";
+"Syslog monitor exited (status %@). Total cards: %@." = "Syslog monitor exited (status %@). Total cards: %@.";
+"Card scanning failed. Check the log and retry." = "Card scanning failed. Check the log and retry.";
