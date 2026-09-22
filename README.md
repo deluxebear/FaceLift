@@ -80,10 +80,14 @@ This builds universal binaries (`arm64` + `x86_64`), bundles dependencies into `
 ---
 
 ## Contributors
-- **[@mak5er](https://github.com/mak5er)** (Developer) — [GitHub](https://github.com/mak5er) · [Twitter / X](https://x.com/mak5er)
-- **[@Lumid-Off](https://github.com/Lumid-Off)** (Contributor & Developer) — [GitHub](https://github.com/Lumid-Off) · [Twitter / X](https://x.com/LumidOff)
+- **[@jetems](https://github.com/jetems)** (Developer & Maintainer of FaceLift)
+
+FaceLift is forked from **AirCard v1.2.3**, created by:
+- **[@mak5er](https://github.com/mak5er)** (Author of AirCard) — [GitHub](https://github.com/mak5er) · [Twitter / X](https://x.com/mak5er)
+- **[@Lumid-Off](https://github.com/Lumid-Off)** (AirCard Contributor & Developer) — [GitHub](https://github.com/Lumid-Off) · [Twitter / X](https://x.com/LumidOff)
+
 - **[AirLift](https://github.com/0xjohnnydev/airlift)** by **[0xjohnny (@0xjohnnydev)](https://github.com/0xjohnnydev)**: Original AirTraffic/ATAirlock sandbox escape and proof of concept underlying `AirliftFFI`.
 
 ## Credits
-- FaceLift is based on **[AirCard](https://github.com/mak5er/AirCard)** by **Johnny Franks (@Mak5er)**, licensed under the MIT License.
+- FaceLift is based on **[AirCard v1.2.3](https://github.com/mak5er/AirCard)** by **Johnny Franks (@Mak5er)**, licensed under the MIT License.
 - Core exploit based on `airlift` (AirTraffic sync escape).

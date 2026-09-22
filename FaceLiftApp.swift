@@ -3539,6 +3539,11 @@ struct ContentView: View {
                     Text(L("By"))
                         .font(.system(size: 10))
                         .foregroundColor(.secondary)
+                    Link("@jetems", destination: URL(string: "https://github.com/jetems")!)
+                        .font(.system(size: 10))
+                    Text(L("· based on AirCard by"))
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
                     Link("@mak5er", destination: URL(string: "https://github.com/mak5er")!)
                         .font(.system(size: 10))
                     Text(L("&"))
@@ -3572,8 +3577,16 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     Image(systemName: "person.crop.circle.fill")
+                        .foregroundColor(.green)
+                    Text(L("Developer & Maintainer:"))
+                        .fontWeight(.medium)
+                    Link("@jetems", destination: URL(string: "https://github.com/jetems")!)
+                }
+                
+                HStack {
+                    Image(systemName: "person.crop.circle.fill")
                         .foregroundColor(.blue)
-                    Text(L("Developer:"))
+                    Text(L("AirCard Author:"))
                         .fontWeight(.medium)
                     Link("@mak5er", destination: URL(string: "https://github.com/mak5er")!)
                     Text("·")
@@ -3584,12 +3597,22 @@ struct ContentView: View {
                 HStack {
                     Image(systemName: "person.crop.circle.fill")
                         .foregroundColor(.blue)
-                    Text(L("Developer:"))
+                    Text(L("AirCard Contributor:"))
                         .fontWeight(.medium)
                     Link("@Lumid-Off", destination: URL(string: "https://github.com/Lumid-Off")!)
                     Text("·")
                         .foregroundColor(.secondary)
                     Link("Twitter / X", destination: URL(string: "https://x.com/LumidOff")!)
+                }
+                
+                HStack {
+                    Image(systemName: "arrow.triangle.branch")
+                        .foregroundColor(.teal)
+                    Text(L("Based on:"))
+                        .fontWeight(.medium)
+                    Link("AirCard v1.2.3", destination: URL(string: "https://github.com/mak5er/AirCard")!)
+                    Text(L("(MIT License)") )
+                        .foregroundColor(.secondary)
                 }
                 
                 HStack {

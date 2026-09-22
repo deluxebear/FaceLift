@@ -240,3 +240,9 @@
 "Warning: reading artwork over Wi-Fi is unreliable; use a USB connection." = "Warning: reading artwork over Wi-Fi is unreliable; use a USB connection.";
 "Wi-Fi" = "Wi-Fi";
 "USB" = "USB";
+"· based on AirCard by" = "· based on AirCard by";
+"Developer & Maintainer:" = "Developer & Maintainer:";
+"AirCard Author:" = "AirCard Author:";
+"AirCard Contributor:" = "AirCard Contributor:";
+"Based on:" = "Based on:";
+"(MIT License)" = "(MIT License)";
