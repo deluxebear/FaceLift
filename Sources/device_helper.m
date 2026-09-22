@@ -1508,6 +1508,20 @@ int main(int argc, const char *argv[]) {
                     [NSString stringWithUTF8String:argv[6]],
                     [NSString stringWithUTF8String:argv[7]],
                 ]);
+            } else if ([command isEqual:@"afc-read"] && argc == 5) {
+                NSString *mediaPath = [NSString stringWithUTF8String:argv[3]];
+                NSString *localOut = [NSString stringWithUTF8String:argv[4]];
+                if (!IsSafeRelativePath(mediaPath)) {
+                    operation = @{ @"ok": @NO, @"error": @"unsafe media path" };
+                } else {
+                    NSData *data = AFCReadFileWithLimit(
+                        session.afc, mediaPath, 32 * 1024 * 1024);
+                    BOOL wrote = data &&
+                        [data writeToFile:localOut options:NSDataWritingAtomic error:nil];
+                    operation = @{ @"ok": @(wrote),
+                                   @"size": @(data.length),
+                                   @"path": mediaPath };
+                }
             }
         }
 
