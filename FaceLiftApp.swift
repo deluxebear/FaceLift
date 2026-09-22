@@ -2108,7 +2108,7 @@ struct ContentView: View {
                     Text("FaceLift")
                         .font(.title2)
                         .fontWeight(.bold)
-                    Text("v1.2.3")
+                    Text("v0.9.0")
                         .font(.system(size: 10, weight: .bold, design: .rounded))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)

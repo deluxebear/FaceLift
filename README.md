@@ -4,11 +4,17 @@
 > **Tested on iOS 27 release.**
 > Powered by the `airlift` AirTraffic sync exploit.
 
-<p align="left">
-  <a href="https://www.paypal.com/donate/?hosted_button_id=98QRTC2HFRA4Y"><img src="https://img.shields.io/badge/Donate-PayPal-00457C?style=flat-square&logo=paypal" alt="Donate with PayPal" /></a>
-</p>
+**Language:** English | [简体中文](README.zh-CN.md)
 
 ---
+
+## What's New in FaceLift
+FaceLift continues development from AirCard v1.2.3 with these additions:
+- 🖼️ **Read Card Artwork Back from iPhone:** Each card's stored face is pulled into the Mac preview and kept across launches — no more re-assigning skins you already flashed.
+- 🎯 **Selective Artwork Reading:** "Read Selected from iPhone" pulls only the checked cards, so large collections stay fast.
+- 🔌 **USB vs Wi-Fi Awareness:** The status capsule shows whether your iPhone is connected over USB (green) or a Wi-Fi tunnel (orange), backed by usbmuxd's authoritative transport info. Operations that need USB (like reading artwork) warn you when you're on Wi-Fi.
+- 🌏 **Simplified Chinese Interface:** Full zh-Hans localization with a language menu (Follow System / English / 简体中文).
+- 🛠️ **Stability Fixes:** Resolved stderr pipe deadlocks, added batch flash with per-file fallback, and fixed drag-and-drop handling.
 
 ## Features
 - 🎨 **Custom Card Skins:** Assign custom artwork, textures, or bank logos to Apple Pay and Wallet cards.
