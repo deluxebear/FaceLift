@@ -2108,7 +2108,7 @@ struct ContentView: View {
                     Text("FaceLift")
                         .font(.title2)
                         .fontWeight(.bold)
-                    Text("v0.9.0")
+                    Text("v\(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.9.0")")
                         .font(.system(size: 10, weight: .bold, design: .rounded))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)

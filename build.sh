@@ -9,6 +9,7 @@ make clean
 make all
 
 APP_NAME="FaceLift"
+APP_VERSION="${APP_VERSION:-0.9.0}"
 APP_DIR="build/${APP_NAME}.app"
 CONTENTS_DIR="${APP_DIR}/Contents"
 MACOS_DIR="${CONTENTS_DIR}/MacOS"
@@ -20,8 +21,9 @@ echo "==> [2/6] Scaffolding ${APP_NAME}.app bundle structure..."
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$BIN_DIR" "$LIB_DIR"
 
-# Write Info.plist
-cat << 'EOF' > "${CONTENTS_DIR}/Info.plist"
+# Write Info.plist (APP_VERSION expands from the environment; CI sets it from
+# the git tag so the bundle version always matches the release.)
+cat << EOF > "${CONTENTS_DIR}/Info.plist"
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -48,7 +50,7 @@ cat << 'EOF' > "${CONTENTS_DIR}/Info.plist"
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.9.0</string>
+    <string>${APP_VERSION}</string>
     <key>CFBundleVersion</key>
     <string>9</string>
     <key>LSMinimumSystemVersion</key>
