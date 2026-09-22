@@ -24,6 +24,9 @@ struct DeviceInfo: Codable {
     var version: String?
     var product: String?
     var connection: String?
+    var language: String?
+    var locale: String?
+    var bold_text: Bool?
     var airlift_compatible: Bool?
     var connected: Bool
     var error: String?

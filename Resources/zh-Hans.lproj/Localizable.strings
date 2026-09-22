@@ -421,3 +421,6 @@
 "Card scanning ended. Check the log and reconnect the iPhone to retry." = "卡片扫描已结束。请查看日志，重新连接 iPhone 后重试。";
 "Syslog monitor exited (status %@). Total cards: %@." = "系统日志监听已退出（状态 %@）。共 %@ 张卡片。";
 "Card scanning failed. Check the log and retry." = "卡片扫描失败。请查看日志后重试。";
+"Auto-configured passcode target: %@, %@" = "已自动设置密码主题目标：%@，%@";
+"Auto-detect" = "自动识别";
+"Reset to the iPhone's detected language and font style" = "恢复为从 iPhone 识别到的语言和字体样式";

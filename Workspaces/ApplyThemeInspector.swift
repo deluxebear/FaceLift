@@ -63,7 +63,19 @@ extension ContentView {
                 }
             }
         } header: {
-            Text(L("Flash Target"))
+            HStack {
+                Text(L("Flash Target"))
+                Spacer()
+                if let dev = vm.device, dev.connected {
+                    Button {
+                        vm.applyDevicePreferences(from: dev)
+                    } label: {
+                        Label(L("Auto-detect"), systemImage: "sparkles")
+                    }
+                    .buttonStyle(.borderless)
+                    .help(L("Reset to the iPhone's detected language and font style"))
+                }
+            }
         } footer: {
             Text(isUniversal
                  ? L("Universal mode flashes ~600 files for all languages & Bold text. Selecting a specific language (e.g. Ukrainian) speeds up flashing dramatically.")

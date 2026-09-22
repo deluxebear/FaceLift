@@ -172,6 +172,9 @@ def get_connected_device(prefer: str | None = None) -> dict | None:
             }
             for d in iphones or usable
         ],
+        "language": device.get("language") or "en",
+        "locale": device.get("locale") or "",
+        "bold_text": device.get("bold_text"),
     }
 
 

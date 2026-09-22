@@ -641,6 +641,7 @@ class AppViewModel: ObservableObject {
                             || self.device?.udid != dev.udid
                             || self.device?.product != dev.product
                             || self.device?.connection != dev.connection
+                        let newlyConnected = self.device?.connected != true || self.device?.udid != dev.udid
                         self.device = dev
                         self.isCheckingDevice = false
                         if dev.connected {
@@ -655,6 +656,9 @@ class AppViewModel: ObservableObject {
                                     self.setStatus("Connected to %@", deviceName)
                                 }
                                 self.log("Device connected (%@): %@ (%@, iOS %@)", dev.isWiFi ? "Wi-Fi" : "USB", deviceName, dev.product ?? "", dev.version ?? "")
+                            }
+                            if newlyConnected {
+                                self.applyDevicePreferences(from: dev)
                             }
                             self.reconcileActiveProfile(with: dev)
                         } else if dev.error == "device_helper_missing" {
@@ -691,6 +695,18 @@ class AppViewModel: ObservableObject {
         }
     }
     
+    /// Targets the passcode flash at the iPhone's own keyboard language and
+    /// Bold Text setting, so only the matching files are written.
+    func applyDevicePreferences(from dev: DeviceInfo) {
+        if let language = dev.language {
+            passcodeLanguageTarget = PasscodeLanguageTarget.forLanguageIdentifier(language)
+        }
+        if let isBold = dev.bold_text {
+            passcodeBoldTarget = isBold ? .boldOnly : .regularOnly
+        }
+        log("Auto-configured passcode target: %@, %@", passcodeLanguageTarget.title, passcodeBoldTarget.title)
+    }
+
     func startCardScanning() {
         guard !isScanningCards else { return }
         guard let deviceHelper = AppViewModel.deviceHelperExecutableURL else {

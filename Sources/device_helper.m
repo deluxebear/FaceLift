@@ -215,6 +215,19 @@ static void EnumerateCallback(AMDeviceNotificationCallbackInfo *info,
                 entry[field] =
                     [value isKindOfClass:NSString.class] ? value : @"";
             }
+            id language = CFBridgingRelease(AMDeviceCopyValue(
+                info->device, CFSTR("com.apple.international"), CFSTR("Language")));
+            entry[@"language"] = [language isKindOfClass:NSString.class] ? language : @"en";
+
+            id locale = CFBridgingRelease(AMDeviceCopyValue(
+                info->device, CFSTR("com.apple.international"), CFSTR("Locale")));
+            entry[@"locale"] = [locale isKindOfClass:NSString.class] ? locale : @"";
+
+            id boldText = CFBridgingRelease(AMDeviceCopyValue(
+                info->device, CFSTR("com.apple.Accessibility"), CFSTR("EnhancedTextLegibility")));
+            if (boldText) {
+                entry[@"bold_text"] = @([boldText boolValue]);
+            }
             AMDeviceStopSession(info->device);
         }
         AMDeviceDisconnect(info->device);

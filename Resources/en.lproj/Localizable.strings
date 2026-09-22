@@ -421,3 +421,6 @@
 "Card scanning ended. Check the log and reconnect the iPhone to retry." = "Card scanning ended. Check the log and reconnect the iPhone to retry.";
 "Syslog monitor exited (status %@). Total cards: %@." = "Syslog monitor exited (status %@). Total cards: %@.";
 "Card scanning failed. Check the log and retry." = "Card scanning failed. Check the log and retry.";
+"Auto-configured passcode target: %@, %@" = "Auto-configured passcode target: %@, %@";
+"Auto-detect" = "Auto-detect";
+"Reset to the iPhone's detected language and font style" = "Reset to the iPhone's detected language and font style";
