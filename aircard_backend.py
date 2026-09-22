@@ -43,6 +43,7 @@ for lp in lib_paths:
 from apply_card_skin import (
     native,
     operation_ok,
+    read_card_artwork,
     write_file,
     write_files_batch,
     build_archive_multi,
@@ -70,6 +71,23 @@ def cmd_device():
     device["airlift_compatible"] = operation_ok(probe)
     device["connected"] = True
     print(json.dumps(device))
+
+
+def cmd_pull_card(udid: str, card_hash: str, dest_path: str) -> bool:
+    from apply_card_skin import CardReadSyncError
+
+    try:
+        leaf = read_card_artwork(udid, card_hash, dest_path)
+    except CardReadSyncError:
+        print(json.dumps({"ok": False, "reason": "sync", "asset": "", "path": ""}))
+        return False
+    print(json.dumps({
+        "ok": bool(leaf) and Path(dest_path).is_file(),
+        "reason": "" if leaf else "missing",
+        "asset": leaf or "",
+        "path": dest_path if leaf else "",
+    }))
+    return bool(leaf)
 
 
 def cmd_get_saved_cards():
@@ -568,6 +586,9 @@ def main():
         cmd_get_saved_cards()
     elif norm_cmd == "save-cards" and len(sys.argv) > 2:
         cmd_save_cards(sys.argv[2])
+    elif norm_cmd == "pull-card" and len(sys.argv) > 4:
+        if not cmd_pull_card(sys.argv[2], sys.argv[3], sys.argv[4]):
+            sys.exit(1)
     elif norm_cmd == "prepare-image" and len(sys.argv) > 3:
         cmd_prepare_image(sys.argv[2], sys.argv[3])
     elif norm_cmd == "flash" and len(sys.argv) > 4:

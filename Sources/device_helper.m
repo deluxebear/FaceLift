@@ -397,6 +397,149 @@ static NSData *AFCReadFile(AFCConnectionRef afc, NSString *path) {
     return AFCReadFileWithLimit(afc, path, 16 * 1024 * 1024);
 }
 
+static BOOL IsLowercaseHex(NSString *value, NSUInteger length);
+static BOOL RemoveGeneratedTree(AFCConnectionRef afc, NSString *path, NSUInteger depth);
+static BOOL AFCWriteFile(AFCConnectionRef afc, NSString *path, NSData *data);
+static BOOL EnsureDirectory(AFCConnectionRef afc, NSString *path);
+static BOOL IsAirToken(NSString *token) {
+    return IsLowercaseHex(token, 20);
+}
+
+static BOOL IsArtworkLeaf(NSString *leaf) {
+    if (!leaf.length || leaf.length > 80 ||
+        [leaf rangeOfString:@"/"].location != NSNotFound ||
+        [leaf rangeOfString:@".."].location != NSNotFound) return NO;
+    NSCharacterSet *allowed = [NSCharacterSet
+        characterSetWithCharactersInString:
+            @"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789@._+-"];
+    return [leaf rangeOfCharacterFromSet:allowed.invertedSet].location == NSNotFound;
+}
+
+// After the symlink is moved to the Media root, "<link>/<leaf>" is the card file.
+static BOOL IsLinkRoot(NSString *path) {
+    if (![path hasPrefix:AIRLIFT_LINK_PREFIX]) return NO;
+    NSString *token = [path substringFromIndex:[AIRLIFT_LINK_PREFIX length]];
+    return IsAirToken(token);
+}
+
+static BOOL IsRecoveredFile(NSString *path) {
+    if (![path hasPrefix:AIRLIFT_RECOVERED_PREFIX]) return NO;
+    return IsAirToken([path substringFromIndex:[AIRLIFT_RECOVERED_PREFIX length]]);
+}
+
+static BOOL IsLinkFile(NSString *path) {
+    NSRange slash = [path rangeOfString:@"/"];
+    if (slash.location == NSNotFound || slash.location == 0) return NO;
+    if ([path rangeOfString:@"/" options:0
+                      range:NSMakeRange(slash.location + 1, path.length - slash.location - 1)].location != NSNotFound)
+        return NO;
+    NSString *root = [path substringToIndex:slash.location];
+    NSString *leaf = [path substringFromIndex:slash.location + 1];
+    return IsLinkRoot(root) && IsArtworkLeaf(leaf);
+}
+
+static BOOL IsGeneratedMediaName(NSString *name) {
+    if ([name hasPrefix:AIRLIFT_SOURCE_PREFIX])
+        return IsAirToken([name substringFromIndex:[AIRLIFT_SOURCE_PREFIX length]]);
+    if ([name hasPrefix:AIRLIFT_LINK_PREFIX])
+        return IsAirToken([name substringFromIndex:[AIRLIFT_LINK_PREFIX length]]);
+    if ([name hasPrefix:AIRLIFT_RECOVERED_PREFIX])
+        return IsAirToken([name substringFromIndex:[AIRLIFT_RECOVERED_PREFIX length]]);
+    return NO;
+}
+
+static NSDictionary *SweepGeneratedMedia(AFCConnectionRef afc) {
+    const char *roots[] = { "", ".", NULL };
+    AFCDirectoryRef directory = NULL;
+    int openStatus = -1;
+    for (int index = 0; roots[index] && !directory; index++)
+        openStatus = AFCDirectoryOpen(afc, roots[index], &directory);
+    if (!directory) return @{ @"ok": @NO, @"reason": @"open", @"status": @(openStatus) };
+    NSMutableArray<NSString *> *removed = NSMutableArray.array;
+    NSMutableArray<NSString *> *failed = NSMutableArray.array;
+    for (NSUInteger index = 0; index < 4096; index++) {
+        char *raw = NULL;
+        int status = AFCDirectoryRead(afc, directory, &raw);
+        if (status != 0 || !raw) break;
+        NSString *name = [NSString stringWithUTF8String:raw];
+        if (!IsGeneratedMediaName(name)) continue;
+        if (RemoveGeneratedTree(afc, name, 0))
+            [removed addObject:name];
+        else
+            [failed addObject:name];
+    }
+    AFCDirectoryClose(afc, directory);
+    return @{ @"ok": @(failed.count == 0), @"removed": removed, @"failed": failed };
+}
+
+static NSDictionary *InstallBooks(AFCConnectionRef afc, NSString *localPath) {
+    NSData *books = [NSData dataWithContentsOfFile:localPath];
+    if (!books.length || books.length > 1024 * 1024)
+        return @{ @"ok": @NO, @"reason": @"plist" };
+    BOOL ready = EnsureDirectory(afc, @"Books") &&
+        EnsureDirectory(afc, @"Books/Sync");
+    BOOL wrote = ready && AFCWriteFile(afc, @"Books/Sync/Books.plist", books);
+    return @{ @"ok": @(wrote) };
+}
+
+static NSDictionary *ListStagedLink(AFCConnectionRef afc, NSString *path) {
+    if (!IsLinkRoot(path))
+        return @{ @"ok": @NO, @"reason": @"path" };
+    AFCDirectoryRef directory = NULL;
+    if (AFCDirectoryOpen(afc, path.fileSystemRepresentation, &directory) != 0 ||
+        !directory) return @{ @"ok": @NO, @"reason": @"open" };
+    NSMutableArray<NSString *> *names = NSMutableArray.array;
+    BOOL readOK = YES;
+    for (NSUInteger index = 0; index < 512; index++) {
+        char *raw = NULL;
+        int status = AFCDirectoryRead(afc, directory, &raw);
+        if (status != 0) {
+            readOK = NO;
+            break;
+        }
+        if (!raw) break;
+        NSString *name = [NSString stringWithUTF8String:raw];
+        if (!name || [name isEqual:@"."] || [name isEqual:@".."]) continue;
+        if (IsArtworkLeaf(name)) [names addObject:name];
+    }
+    BOOL closeOK = AFCDirectoryClose(afc, directory) == 0;
+    if (!readOK || !closeOK) return @{ @"ok": @NO, @"reason": @"read" };
+    return @{ @"ok": @YES, @"entries": names };
+}
+
+static NSDictionary *StatMedia(AFCConnectionRef afc, NSString *path) {
+    if (!IsLinkRoot(path) && !IsLinkFile(path) && !IsRecoveredFile(path))
+        return @{ @"ok": @NO, @"reason": @"path" };
+    AFCKeyValueRef info = NULL;
+    int status = AFCFileInfoOpen(afc, path.fileSystemRepresentation, &info);
+    if (status != 0 || !info)
+        return @{ @"ok": @NO, @"reason": @"info", @"status": @(status) };
+    NSMutableDictionary *fields = NSMutableDictionary.dictionary;
+    char *key = NULL;
+    char *value = NULL;
+    while (AFCKeyValueRead(info, &key, &value) == 0 && key && value) {
+        fields[[NSString stringWithUTF8String:key]] = [NSString stringWithUTF8String:value];
+        key = NULL;
+        value = NULL;
+    }
+    AFCKeyValueClose(info);
+    fields[@"ok"] = @YES;
+    return fields;
+}
+
+static NSDictionary *PullStagedFile(AFCConnectionRef afc,
+                                    NSString *remote,
+                                    NSString *local) {
+    if (!IsLinkFile(remote) && !IsLinkRoot(remote) && !IsRecoveredFile(remote))
+        return @{ @"ok": @NO, @"reason": @"path" };
+    if (!local.length || ![local hasPrefix:@"/"])
+        return @{ @"ok": @NO, @"reason": @"destination" };
+    NSData *data = AFCReadFileWithLimit(afc, remote, 32 * 1024 * 1024);
+    if (!data.length) return @{ @"ok": @NO, @"reason": @"read" };
+    BOOL wrote = [data writeToFile:local atomically:YES];
+    return @{ @"ok": @(wrote), @"bytes": @(data.length) };
+}
+
 static BOOL AFCWriteFile(AFCConnectionRef afc, NSString *path, NSData *data) {
     AFCFileRef file = NULL;
     int status = AFCFileRefOpen(afc, path.fileSystemRepresentation, 3, &file);
@@ -1047,6 +1190,22 @@ int main(int argc, const char *argv[]) {
                     [NSString stringWithUTF8String:argv[5]],
                     [NSString stringWithUTF8String:argv[6]],
                 ]);
+            } else if ([command isEqual:@"install-books"] && argc == 4) {
+                operation = InstallBooks(
+                    session.afc, [NSString stringWithUTF8String:argv[3]]);
+            } else if ([command isEqual:@"sweep"] && argc == 3) {
+                operation = SweepGeneratedMedia(session.afc);
+            } else if ([command isEqual:@"list-link"] && argc == 4) {
+                operation = ListStagedLink(
+                    session.afc, [NSString stringWithUTF8String:argv[3]]);
+            } else if ([command isEqual:@"stat-media"] && argc == 4) {
+                operation = StatMedia(
+                    session.afc, [NSString stringWithUTF8String:argv[3]]);
+            } else if ([command isEqual:@"pull"] && argc == 5) {
+                operation = PullStagedFile(
+                    session.afc,
+                    [NSString stringWithUTF8String:argv[3]],
+                    [NSString stringWithUTF8String:argv[4]]);
             }
         }
 

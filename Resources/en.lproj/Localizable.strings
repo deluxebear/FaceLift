@@ -226,3 +226,9 @@
 "Could not write %@ file(s) in %@: %@" = "Could not write %@ file(s) in %@: %@";
 "[Fallback] Writing %@ (%@/%@)..." = "[Fallback] Writing %@ (%@/%@)...";
 "Passcode theme '%@' successfully applied! Lock your iPhone to check." = "Passcode theme '%@' successfully applied! Lock your iPhone to check.";
+"Read from iPhone" = "Read from iPhone";
+"Reading artwork from iPhone..." = "Reading artwork from iPhone...";
+"Read artwork for %@." = "Read artwork for %@.";
+"Read %@ artwork for card %@." = "Read %@ artwork for card %@.";
+"No artwork found on iPhone for %@." = "No artwork found on iPhone for %@.";
+"Could not read artwork from iPhone." = "Could not read artwork from iPhone.";

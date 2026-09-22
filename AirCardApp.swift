@@ -714,6 +714,8 @@ class AppViewModel: ObservableObject {
     @Published var showAddCardSheet = false
     @Published var manualHashInput = ""
     @Published var showLogs = false
+    @Published var isPullingSkins = false
+    private var skinPullQueue: [String] = []
     
     private var scanProcess: Process?
     private let scriptDir: String
@@ -900,8 +902,106 @@ class AppViewModel: ObservableObject {
         ]
         loaded.removeAll { dummyHashes.contains($0) || ($0.contains("-") && $0.count == 36) }
         
-        self.cards = loaded.map { CardItem(id: $0, isSelected: true) }
+        self.cards = loaded.map { id in
+            var card = CardItem(id: id, isSelected: true)
+            let stored = Self.storedSkinURL(for: id)
+            if FileManager.default.fileExists(atPath: stored.path),
+               let image = NSImage(contentsOf: stored) {
+                card.customImageURL = stored
+                card.customImage = image
+            }
+            return card
+        }
         log("Loaded %@ real card(s) from storage.", "\(cards.count)")
+    }
+
+    static func storedSkinURL(for cardId: String) -> URL {
+        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("AirCard/skins", isDirectory: true)
+        try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
+        let allowed = CharacterSet(charactersIn: "-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_+=")
+        let safe = cardId.unicodeScalars.allSatisfy { allowed.contains($0) } ? cardId : "card"
+        return base.appendingPathComponent(safe).appendingPathExtension("png")
+    }
+
+    func storeSkin(for cardId: String, url: URL) {
+        guard let idx = cards.firstIndex(where: { $0.id == cardId }) else { return }
+        let dest = Self.storedSkinURL(for: cardId)
+        if url.path != dest.path {
+            try? FileManager.default.removeItem(at: dest)
+            try? FileManager.default.copyItem(at: url, to: dest)
+        }
+        let stored = FileManager.default.fileExists(atPath: dest.path) ? dest : url
+        cards[idx].customImageURL = stored
+        cards[idx].customImage = NSImage(contentsOf: stored)
+        cards[idx].isSelected = true
+    }
+
+    func queueSkinPulls(ids: [String], replacingStored: Bool) {
+        guard device?.connected == true, let _ = device?.udid, !isFlashing else { return }
+        for id in ids {
+            let stored = Self.storedSkinURL(for: id)
+            let hasStored = FileManager.default.fileExists(atPath: stored.path)
+            if !replacingStored && hasStored { continue }
+            if !skinPullQueue.contains(id) {
+                skinPullQueue.append(id)
+            }
+        }
+        pumpSkinPulls()
+    }
+
+    func pumpSkinPulls() {
+        guard !isPullingSkins, !isFlashing, let udid = device?.udid else { return }
+        guard !skinPullQueue.isEmpty else { return }
+        let cardId = skinPullQueue.removeFirst()
+        isPullingSkins = true
+        setStatus("Reading artwork from iPhone...")
+        let scriptDir = self.scriptDir
+        let dest = Self.storedSkinURL(for: cardId)
+        Task.detached {
+            let process = Process()
+            process.executableURL = AppViewModel.pythonExecutableURL
+            process.environment = AppViewModel.processEnvironment
+            process.currentDirectoryURL = URL(fileURLWithPath: scriptDir)
+            process.arguments = ["aircard_backend.py", "--pull-card", udid, cardId, dest.path]
+            let pipe = Pipe()
+            process.standardOutput = pipe
+            process.standardError = FileHandle.nullDevice
+            let pulled: (ok: Bool, asset: String, reason: String)
+            do {
+                try process.run()
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                process.waitUntilExit()
+                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    pulled = ((json["ok"] as? Bool) == true, json["asset"] as? String ?? "", json["reason"] as? String ?? "")
+                } else {
+                    pulled = (false, "", "sync")
+                }
+            } catch {
+                pulled = (false, "", "sync")
+            }
+            await MainActor.run {
+                self.isPullingSkins = false
+                if pulled.ok, let image = NSImage(contentsOf: dest) {
+                    if let idx = self.cards.firstIndex(where: { $0.id == cardId }) {
+                        self.cards[idx].customImageURL = dest
+                        self.cards[idx].customImage = image
+                    }
+                    self.setStatus("Read artwork for %@.", String(cardId.prefix(8)))
+                    self.log("Read %@ artwork for card %@.", pulled.asset, String(cardId.prefix(8)))
+                } else if pulled.reason == "sync" {
+                    self.skinPullQueue.removeAll()
+                    self.setStatus("Could not read artwork from iPhone.")
+                    self.log("Could not read artwork from iPhone.")
+                } else {
+                    self.log("No artwork found on iPhone for %@.", String(cardId.prefix(8)))
+                    if self.skinPullQueue.isEmpty {
+                        self.setStatus("No artwork found on iPhone for %@.", String(cardId.prefix(8)))
+                    }
+                }
+                self.pumpSkinPulls()
+            }
+        }
     }
     
     func saveCards() {
@@ -943,18 +1043,15 @@ class AppViewModel: ObservableObject {
     }
     
     func setCardImage(for cardId: String, url: URL) {
-        if let idx = cards.firstIndex(where: { $0.id == cardId }) {
-            cards[idx].customImageURL = url
-            cards[idx].customImage = NSImage(contentsOf: url)
-            cards[idx].isSelected = true
-            log("Assigned custom skin to card: %@...", String(cardId.prefix(12)))
-        }
+        storeSkin(for: cardId, url: url)
+        log("Assigned custom skin to card: %@...", String(cardId.prefix(12)))
     }
     
     func clearCardImage(for cardId: String) {
         if let idx = cards.firstIndex(where: { $0.id == cardId }) {
             cards[idx].customImageURL = nil
             cards[idx].customImage = nil
+            try? FileManager.default.removeItem(at: Self.storedSkinURL(for: cardId))
             log("Cleared custom skin for: %@...", String(cardId.prefix(12)))
         }
     }
@@ -1110,6 +1207,7 @@ class AppViewModel: ObservableObject {
                                             self.cards.append(CardItem(id: candidate, isSelected: true))
                                             self.saveCards()
                                             self.log("Found card: %@", candidate)
+                                            self.queueSkinPulls(ids: [candidate], replacingStored: false)
                                             NSSound(named: "Glass")?.play()
                                         }
                                     }
@@ -1625,6 +1723,7 @@ struct WalletCardView: View {
     let onPickImage: () -> Void
     let onClearImage: () -> Void
     let onDelete: () -> Void
+    var onStoreImage: (URL) -> Void = { _ in }
     
     @State private var isHovered = false
     @State private var isTargeted = false
@@ -1759,6 +1858,7 @@ struct WalletCardView: View {
                                 card.customImageURL = url
                                 card.customImage = img
                                 card.isSelected = true
+                                onStoreImage(url)
                             }
                         }
                     }
@@ -1770,6 +1870,7 @@ struct WalletCardView: View {
                                 card.customImageURL = url
                                 card.customImage = img
                                 card.isSelected = true
+                                onStoreImage(url)
                             }
                         } else if let img = item as? NSImage {
                             let tempURL = FileManager.default.temporaryDirectory
@@ -1783,6 +1884,7 @@ struct WalletCardView: View {
                                 card.customImageURL = tempURL
                                 card.customImage = img
                                 card.isSelected = true
+                                onStoreImage(tempURL)
                             }
                         }
                     }
@@ -1920,7 +2022,8 @@ struct ContentView: View {
                                     cardIndex: idx,
                                     onPickImage: { openCardImagePicker(for: vm.cards[idx].id) },
                                     onClearImage: { vm.clearCardImage(for: vm.cards[idx].id) },
-                                    onDelete: { vm.deleteCard(id: vm.cards[idx].id) }
+                                    onDelete: { vm.deleteCard(id: vm.cards[idx].id) },
+                                    onStoreImage: { vm.storeSkin(for: vm.cards[idx].id, url: $0) }
                                 )
                             }
                         }
@@ -2088,6 +2191,15 @@ struct ContentView: View {
             .controlSize(.regular)
             
             if !vm.cards.isEmpty {
+                Button(action: {
+                    vm.queueSkinPulls(ids: vm.cards.map(\.id), replacingStored: true)
+                }) {
+                    Label(L("Read from iPhone"), systemImage: "iphone.and.arrow.forward")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.regular)
+                .disabled(vm.device?.connected != true || vm.isPullingSkins || vm.isFlashing)
+
                 Button(action: openBulkImagePicker) {
                     Label(L("Set Skin for All..."), systemImage: "photo.on.rectangle.angled")
                 }
@@ -3351,7 +3463,7 @@ struct ContentView: View {
                         .buttonStyle(.borderedProminent)
                         .tint(.purple)
                         .controlSize(.regular)
-                        .disabled(vm.effectiveCreatorKeys.isEmpty || vm.isFlashing || vm.device?.connected != true)
+                        .disabled(vm.effectiveCreatorKeys.isEmpty || vm.isFlashing || vm.isPullingSkins || vm.device?.connected != true)
                     } else {
                         Button(action: { vm.flashPasscodeTheme() }) {
                             HStack(spacing: 6) {
@@ -3371,7 +3483,7 @@ struct ContentView: View {
                         .buttonStyle(.borderedProminent)
                         .tint(.purple)
                         .controlSize(.regular)
-                        .disabled(vm.loadedPasscodeTheme == nil || vm.isFlashing || vm.device?.connected != true)
+                        .disabled(vm.loadedPasscodeTheme == nil || vm.isFlashing || vm.isPullingSkins || vm.device?.connected != true)
                     }
                 } else {
                     Button(action: { vm.applySkin() }) {
@@ -3392,7 +3504,7 @@ struct ContentView: View {
                     .buttonStyle(.borderedProminent)
                     .tint(.green)
                     .controlSize(.regular)
-                    .disabled(readyToFlashCount == 0 || vm.isFlashing || vm.device?.connected != true)
+                    .disabled(readyToFlashCount == 0 || vm.isFlashing || vm.isPullingSkins || vm.device?.connected != true)
                 }
             }
             

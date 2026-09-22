@@ -226,3 +226,9 @@
 "Could not write %@ file(s) in %@: %@" = "%2$@ 中有 %1$@ 个文件未能写入：%3$@";
 "[Fallback] Writing %@ (%@/%@)..." = "[回退] 正在写入 %@（%@/%@）...";
 "Passcode theme '%@' successfully applied! Lock your iPhone to check." = "密码主题“%@”已写入。请锁定 iPhone 查看。";
+"Read from iPhone" = "读取手机卡面";
+"Reading artwork from iPhone..." = "正在从 iPhone 读取卡面...";
+"Read artwork for %@." = "已读回 %@ 的卡面。";
+"Read %@ artwork for card %@." = "已读回卡片 %2$@ 的 %1$@。";
+"No artwork found on iPhone for %@." = "iPhone 上没有 %@ 的卡面。";
+"Could not read artwork from iPhone." = "没能从 iPhone 读回卡面。请解锁手机后再试。";

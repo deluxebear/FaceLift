@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import aircard_backend
+import apply_card_skin
 
 
 PNG_1X1 = base64.b64decode(
@@ -97,6 +98,45 @@ class CardFlashTests(unittest.TestCase):
         self.assertFalse(result)
         self.assertEqual(messages[-1]["type"], "error")
         write_file.assert_not_called()
+
+
+class CardArtworkReadTests(unittest.TestCase):
+    def test_prefers_the_combined_face_over_other_images(self) -> None:
+        chosen = apply_card_skin.choose_card_artwork([
+            "logo@3x.png",
+            "strip@2x.png",
+            "cardBackgroundCombined@2x.png",
+            "cardBackgroundCombined@3x.png",
+        ])
+        self.assertEqual(chosen, "cardBackgroundCombined@3x.png")
+
+    def test_skips_logos_and_keeps_a_background(self) -> None:
+        chosen = apply_card_skin.choose_card_artwork([
+            "logo.png",
+            "icon@2x.png",
+            "thumbnail.png",
+            "background@2x.png",
+        ])
+        self.assertEqual(chosen, "background@2x.png")
+
+    def test_pass_asset_id_points_at_the_cards_directory(self) -> None:
+        asset = apply_card_skin.pass_asset_id(
+            "/var/mobile/Library/Passes/Cards/abc=.pkpass/cardBackgroundCombined@3x.png"
+        )
+        self.assertEqual(
+            asset,
+            "../../../../../var/mobile/Library/Passes/Cards/abc=.pkpass/cardBackgroundCombined@3x.png",
+        )
+        with self.assertRaises(ValueError):
+            apply_card_skin.pass_asset_id("/etc/passwd")
+
+    def test_rejects_a_hash_before_touching_the_phone(self) -> None:
+        with patch.object(apply_card_skin, "native", side_effect=AssertionError("device used")):
+            self.assertIsNone(apply_card_skin.read_card_artwork("udid", "../etc", "/tmp/out.png"))
+
+    def test_corrupt_cache_bytes_are_not_an_image(self) -> None:
+        self.assertIsNone(apply_card_skin.image_payload(b"corrupted"))
+        self.assertIsNotNone(apply_card_skin.image_payload(PNG_1X1))
 
 
 if __name__ == "__main__":
