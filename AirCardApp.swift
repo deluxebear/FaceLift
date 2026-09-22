@@ -206,9 +206,12 @@ struct DeviceInfo: Codable {
     var name: String?
     var version: String?
     var product: String?
+    var connection: String?
     var airlift_compatible: Bool?
     var connected: Bool
     var error: String?
+    
+    var isWiFi: Bool { connection == "wifi" }
 }
 
 struct CardItem: Identifiable, Hashable {
@@ -939,6 +942,10 @@ class AppViewModel: ObservableObject {
 
     func queueSkinPulls(ids: [String], replacingStored: Bool) {
         guard device?.connected == true, let _ = device?.udid, !isFlashing else { return }
+        if device?.isWiFi == true {
+            setStatus("Reading artwork over Wi-Fi may fail — connect via USB.")
+            log("Warning: reading artwork over Wi-Fi is unreliable; use a USB connection.")
+        }
         for id in ids {
             let stored = Self.storedSkinURL(for: id)
             let hasStored = FileManager.default.fileExists(atPath: stored.path)
@@ -1085,8 +1092,12 @@ class AppViewModel: ObservableObject {
                         self.isCheckingDevice = false
                         if dev.connected {
                             let deviceName = dev.name ?? "iPhone"
-                            self.setStatus("Connected to %@", deviceName)
-                            self.log("Device connected: %@ (%@, iOS %@)", deviceName, dev.product ?? "", dev.version ?? "")
+                            if dev.isWiFi {
+                                self.setStatus("Connected to %@ via Wi-Fi", deviceName)
+                            } else {
+                                self.setStatus("Connected to %@", deviceName)
+                            }
+                            self.log("Device connected (%@): %@ (%@, iOS %@)", dev.isWiFi ? "Wi-Fi" : "USB", deviceName, dev.product ?? "", dev.version ?? "")
                         } else if dev.error == "device_helper_missing" {
                             self.setStatus("Device tools are missing from this build.")
                             self.log("Bundled device_helper not found — detection cannot run.")
@@ -2117,7 +2128,9 @@ struct ContentView: View {
             // Device Status Capsule
             HStack(spacing: 8) {
                 Circle()
-                    .fill(vm.device?.connected == true ? Color.green : Color.red)
+                    .fill(vm.device?.connected != true ? Color.red
+                          : vm.device?.isWiFi == true ? Color.orange
+                          : Color.green)
                     .frame(width: 8, height: 8)
                 
                 if let dev = vm.device, dev.connected {
@@ -2125,9 +2138,9 @@ struct ContentView: View {
                         Text(dev.name ?? "iPhone")
                             .font(.system(size: 11, weight: .semibold))
                             .lineLimit(1)
-                        Text("\(dev.product ?? "") · iOS \(dev.version ?? "")")
+                        Text("\(dev.product ?? "") · iOS \(dev.version ?? "") · \(dev.isWiFi ? L("Wi-Fi") : L("USB"))")
                             .font(.system(size: 9))
-                            .foregroundColor(.secondary)
+                            .foregroundColor(dev.isWiFi ? .orange : .secondary)
                             .lineLimit(1)
                     }
                 } else {
@@ -2192,13 +2205,14 @@ struct ContentView: View {
             
             if !vm.cards.isEmpty {
                 Button(action: {
-                    vm.queueSkinPulls(ids: vm.cards.map(\.id), replacingStored: true)
+                    vm.queueSkinPulls(ids: vm.cards.filter(\.isSelected).map(\.id), replacingStored: true)
                 }) {
-                    Label(L("Read from iPhone"), systemImage: "iphone.and.arrow.forward")
+                    Label(L("Read Selected from iPhone"), systemImage: "iphone.and.arrow.forward")
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.regular)
-                .disabled(vm.device?.connected != true || vm.isPullingSkins || vm.isFlashing)
+                .disabled(vm.device?.connected != true || vm.isPullingSkins || vm.isFlashing || !vm.cards.contains(where: \.isSelected))
+                .help(L("Read artwork for the selected cards only"))
 
                 Button(action: openBulkImagePicker) {
                     Label(L("Set Skin for All..."), systemImage: "photo.on.rectangle.angled")

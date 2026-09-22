@@ -119,15 +119,20 @@ def get_connected_device() -> dict | None:
     usable = [d for d in list_devices() if d.get("udid") and d.get("product")]
     if not usable:
         return None
-    # Enumeration order is not stable, and iPads can appear alongside the iPhone.
+    # Enumeration order is not stable, and iPads can appear alongside the
+    # iPhone. When the same phone is reachable over both Wi-Fi and USB,
+    # prefer the wired transport — some services (AFC artwork reads) only
+    # work there.
     iphones = [d for d in usable if str(d["product"]).startswith("iPhone")]
-    device = (iphones or usable)[0]
+    pool = iphones or usable
+    device = next((d for d in pool if d.get("connection") == "usb"), pool[0])
 
     return {
         "udid": device["udid"],
         "name": device.get("name") or "iPhone",
         "version": device.get("version") or "Unknown",
         "product": device["product"],
+        "connection": device.get("connection") or "unknown",
     }
 
 

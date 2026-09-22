@@ -232,3 +232,11 @@
 "Read %@ artwork for card %@." = "Read %@ artwork for card %@.";
 "No artwork found on iPhone for %@." = "No artwork found on iPhone for %@.";
 "Could not read artwork from iPhone." = "Could not read artwork from iPhone.";
+"Read Selected from iPhone" = "Read Selected from iPhone";
+"Read artwork for the selected cards only" = "Read artwork for the selected cards only";
+"Connected to %@ via Wi-Fi" = "Connected to %@ via Wi-Fi";
+"Device connected (%@): %@ (%@, iOS %@)" = "Device connected (%@): %@ (%@, iOS %@)";
+"Reading artwork over Wi-Fi may fail — connect via USB." = "Reading artwork over Wi-Fi may fail — connect via USB.";
+"Warning: reading artwork over Wi-Fi is unreliable; use a USB connection." = "Warning: reading artwork over Wi-Fi is unreliable; use a USB connection.";
+"Wi-Fi" = "Wi-Fi";
+"USB" = "USB";

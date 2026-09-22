@@ -1,7 +1,9 @@
 #import <CoreFoundation/CoreFoundation.h>
 #import <Foundation/Foundation.h>
 #include <signal.h>
+#include <string.h>
 #include <sys/socket.h>
+#include <sys/un.h>
 #include <unistd.h>
 
 #import "airlift_target.h"
@@ -32,6 +34,8 @@ extern CFTypeRef AMDeviceCopyValue(AMDeviceRef device,
                                    CFStringRef domain,
                                    CFStringRef key);
 extern int AMDeviceConnect(AMDeviceRef device);
+extern int AMDeviceGetInterfaceType(AMDeviceRef device);
+extern unsigned int AMDeviceGetConnectionID(AMDeviceRef device);
 extern int AMDeviceDisconnect(AMDeviceRef device);
 extern int AMDeviceIsPaired(AMDeviceRef device);
 extern int AMDevicePair(AMDeviceRef device);
@@ -182,12 +186,17 @@ static void EnumerateCallback(AMDeviceNotificationCallbackInfo *info,
     NSString *udid =
         CFBridgingRelease(CFStringCreateCopy(kCFAllocatorDefault, identifier));
     CFRelease(identifier);
-    for (NSDictionary *seen in DiscoveredDevices) {
-        if ([seen[@"udid"] isEqual:udid]) return;
-    }
 
     NSMutableDictionary *entry = [@{@"udid": udid} mutableCopy];
     if (AMDeviceConnect(info->device) == 0) {
+        // Network (Wi-Fi/tunnel) connections carry the 0x20000000 flag in
+        // their usbmuxd connection ID; plain USB IDs are small integers.
+        // AMDeviceGetInterfaceType reports 1 for both, so it is unusable.
+        unsigned int connectionID = AMDeviceGetConnectionID(info->device);
+        BOOL isNetwork = (connectionID & 0x20000000u) != 0;
+        entry[@"interface_type"] = @(AMDeviceGetInterfaceType(info->device));
+        entry[@"connection_id"] = @(connectionID);
+        entry[@"connection"] = isNetwork ? @"wifi" : @"usb";
         if (!AMDeviceIsPaired(info->device)) AMDevicePair(info->device);
         if (AMDeviceValidatePairing(info->device) == 0 &&
             AMDeviceStartSession(info->device) == 0) {
@@ -207,7 +216,99 @@ static void EnumerateCallback(AMDeviceNotificationCallbackInfo *info,
         }
         AMDeviceDisconnect(info->device);
     }
+    // Deduplicate by UDID, preferring the USB transport: when the phone is
+    // reachable over both a Wi-Fi tunnel and a cable, usbmuxd reports the
+    // Wi-Fi entry first and the wired one must replace it.
+    NSUInteger existingIdx = [DiscoveredDevices indexOfObjectPassingTest:
+        ^BOOL(NSDictionary *seen, NSUInteger idx, BOOL *stop) {
+            (void)idx; (void)stop;
+            return [seen[@"udid"] isEqual:udid];
+        }];
+    if (existingIdx != NSNotFound) {
+        BOOL existingIsWiFi =
+            [DiscoveredDevices[existingIdx][@"connection"] isEqual:@"wifi"];
+        if (existingIsWiFi && [entry[@"connection"] isEqual:@"usb"]) {
+            DiscoveredDevices[existingIdx] = entry;
+        }
+        return;
+    }
     [DiscoveredDevices addObject:entry];
+}
+
+static BOOL ReadExact(int fd, void *buffer, size_t length) {
+    size_t received = 0;
+    while (received < length) {
+        ssize_t count = recv(fd, (char *)buffer + received, length - received, 0);
+        if (count <= 0) return NO;
+        received += (size_t)count;
+    }
+    return YES;
+}
+
+// Talks the usbmuxd ListDevices protocol over /var/run/usbmuxd and maps
+// normalized serial numbers to their transport ("USB" or "Network").
+static NSDictionary<NSString *, NSString *> *USBMuxConnectionTypes(void) {
+    NSMutableDictionary<NSString *, NSString *> *types =
+        [NSMutableDictionary dictionary];
+    int fd = socket(AF_UNIX, SOCK_STREAM, 0);
+    if (fd < 0) return types;
+    struct sockaddr_un addr;
+    memset(&addr, 0, sizeof(addr));
+    addr.sun_family = AF_UNIX;
+    strlcpy(addr.sun_path, "/var/run/usbmuxd", sizeof(addr.sun_path));
+    if (connect(fd, (struct sockaddr *)&addr, sizeof(addr)) != 0) {
+        close(fd);
+        return types;
+    }
+    NSDictionary *request = @{
+        @"MessageType": @"ListDevices",
+        @"ClientVersionString": @"AirCard-device-helper",
+        @"ProgName": @"device_helper",
+    };
+    NSData *payload = [NSPropertyListSerialization
+        dataWithPropertyList:request
+                      format:NSPropertyListXMLFormat_v1_0
+                     options:0
+                       error:nil];
+    uint32_t header[4] = {0, 1, 8, 1};
+    header[0] = payload ? (uint32_t)(16 + payload.length) : 0;
+    BOOL sent = payload &&
+        send(fd, header, sizeof(header), 0) == (long)sizeof(header) &&
+        send(fd, payload.bytes, payload.length, 0) == (long)payload.length;
+    uint32_t responseHeader[4] = {0};
+    if (!sent || !ReadExact(fd, responseHeader, sizeof(responseHeader))) {
+        close(fd);
+        return types;
+    }
+    uint32_t responseLength = responseHeader[0];
+    if (responseLength < 16 || responseLength > (1u << 20)) {
+        close(fd);
+        return types;
+    }
+    NSMutableData *body =
+        [NSMutableData dataWithLength:responseLength - sizeof(responseHeader)];
+    if (!ReadExact(fd, body.mutableBytes, body.length)) {
+        close(fd);
+        return types;
+    }
+    close(fd);
+    NSDictionary *response = [NSPropertyListSerialization
+        propertyListWithData:body options:0 format:NULL error:nil];
+    NSArray *deviceList = [response isKindOfClass:NSDictionary.class]
+                              ? response[@"DeviceList"]
+                              : nil;
+    for (NSDictionary *device in deviceList) {
+        NSDictionary *properties = device[@"Properties"];
+        NSString *serial = properties[@"SerialNumber"];
+        NSString *connectionType = properties[@"ConnectionType"];
+        if (![serial isKindOfClass:NSString.class] ||
+            ![connectionType isKindOfClass:NSString.class]) continue;
+        // AMDevice identifiers carry a dash that usbmuxd serials omit.
+        NSString *normalized = [[serial uppercaseString]
+            stringByReplacingOccurrencesOfString:@"-" withString:@""];
+        types[normalized] = connectionType;
+    }
+    return types;
 }
 
 static int ListDevices(void) {
@@ -223,6 +324,18 @@ static int ListDevices(void) {
     if (status == 0)
         CFRunLoopRunInMode(kCFRunLoopDefaultMode, 2.0, false);
     if (subscription) AMDeviceNotificationUnsubscribe(subscription);
+    // MobileDevice reports a wired phone through its Wi-Fi tunnel when both
+    // are live, so ask usbmuxd for the real transport of each serial.
+    NSDictionary<NSString *, NSString *> *muxTypes = USBMuxConnectionTypes();
+    for (NSMutableDictionary *entry in DiscoveredDevices) {
+        NSString *normalized =
+            [[entry[@"udid"] uppercaseString]
+                stringByReplacingOccurrencesOfString:@"-" withString:@""];
+        NSString *muxType = muxTypes[normalized];
+        if (muxType) {
+            entry[@"connection"] = [muxType isEqual:@"USB"] ? @"usb" : @"wifi";
+        }
+    }
     NSData *data = [NSJSONSerialization dataWithJSONObject:DiscoveredDevices
                                                    options:0
                                                      error:nil];

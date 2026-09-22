@@ -232,3 +232,11 @@
 "Read %@ artwork for card %@." = "已读回卡片 %2$@ 的 %1$@。";
 "No artwork found on iPhone for %@." = "iPhone 上没有 %@ 的卡面。";
 "Could not read artwork from iPhone." = "没能从 iPhone 读回卡面。请解锁手机后再试。";
+"Read Selected from iPhone" = "读取选中卡面";
+"Read artwork for the selected cards only" = "仅读取选中卡片的卡面";
+"Connected to %@ via Wi-Fi" = "已通过 Wi-Fi 连接 %@";
+"Device connected (%@): %@ (%@, iOS %@)" = "设备已连接（%1$@）：%2$@（%3$@，iOS %4$@）";
+"Reading artwork over Wi-Fi may fail — connect via USB." = "Wi-Fi 下读取卡面可能失败，请改用 USB 连接。";
+"Warning: reading artwork over Wi-Fi is unreliable; use a USB connection." = "警告：Wi-Fi 下读取卡面不可靠，请使用 USB 连接。";
+"Wi-Fi" = "Wi-Fi";
+"USB" = "USB";
