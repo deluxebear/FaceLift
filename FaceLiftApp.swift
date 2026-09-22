@@ -3439,18 +3439,6 @@ struct ContentView: View {
                 }
                 
                 Spacer()
-
-                Picker(selection: $language.choice) {
-                    Text(L("Follow System")).tag(AppLanguageChoice.system)
-                    Text("English").tag(AppLanguageChoice.en)
-                    Text("简体中文").tag(AppLanguageChoice.zhHans)
-                } label: {
-                    Label(L("Language"), systemImage: "globe")
-                }
-                .pickerStyle(.menu)
-                .controlSize(.small)
-                .fixedSize()
-                .help(L("Language"))
                 
                 // Toggle Log Drawer
                 Button(action: { withAnimation { vm.showLogs.toggle() } }) {
@@ -3532,27 +3520,6 @@ struct ContentView: View {
                 }
             }
             
-            // Subtle Footer Credits
-            HStack {
-                Spacer()
-                HStack(spacing: 4) {
-                    Text(L("By"))
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                    Link("@jetems", destination: URL(string: "https://github.com/jetems")!)
-                        .font(.system(size: 10))
-                    Text(L("· based on AirCard by"))
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                    Link("@mak5er", destination: URL(string: "https://github.com/mak5er")!)
-                        .font(.system(size: 10))
-                    Text(L("&"))
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                    Link("@Lumid-Off", destination: URL(string: "https://github.com/Lumid-Off")!)
-                        .font(.system(size: 10))
-                }
-            }
         }
     }
     

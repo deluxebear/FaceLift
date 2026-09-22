@@ -240,7 +240,6 @@
 "Warning: reading artwork over Wi-Fi is unreliable; use a USB connection." = "警告：Wi-Fi 下读取卡面不可靠，请使用 USB 连接。";
 "Wi-Fi" = "Wi-Fi";
 "USB" = "USB";
-"· based on AirCard by" = "· 基于 AirCard，作者";
 "Developer & Maintainer:" = "开发者与维护者：";
 "AirCard Author:" = "AirCard 作者：";
 "AirCard Contributor:" = "AirCard 贡献者：";
