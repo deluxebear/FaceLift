@@ -97,9 +97,9 @@ jobs:
         if: env.SIGN_IDENTITY != ''
         run: |
           codesign --verify --deep --strict --verbose=2 build/FaceLift.app
-          spctl --assess --type execute --verbose=2 build/FaceLift.app || true
+          spctl --assess --type execute --verbose=2 build/FaceLift.app
           xcrun stapler validate build/FaceLift.app
-          xcrun stapler validate build/FaceLift.dmg
+          codesign --verify --verbose=2 build/FaceLift.dmg
 
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4

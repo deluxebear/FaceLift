@@ -168,10 +168,9 @@ else
     hdiutil create -volname "FaceLift" -srcfolder "$DMG_STAGING" -ov -format UDZO "build/${APP_NAME}.dmg"
 fi
 
-# Staple the notarization ticket to the DMG so it verifies offline too.
-if [ "$NOTARIZE" = "1" ] && [ "$SIGN_IDENTITY" != "-" ]; then
-    xcrun stapler staple "build/${APP_NAME}.dmg"
-fi
+# Note: Apple's stapler only supports .app bundles and .pkg installers, not
+# raw disk images. The app inside was already stapled before packaging, and
+# Gatekeeper reads that ticket once the DMG is mounted.
 
 echo "============================================================"
 echo "🎉 SUCCESS: build/${APP_NAME}.dmg is ready!"
