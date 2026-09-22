@@ -432,7 +432,7 @@ def _borrow_pass_file(udid: str, absolute: str) -> bytes | None:
         books_path = work / "Books.plist"
         snapshot_root = work / "books-snapshot"
         snapshot_root.mkdir()
-        archive_path.write_bytes(build_archive("/tmp/unused", b"aircard-read"))
+        archive_path.write_bytes(build_archive("/tmp/unused", b"facelift-read"))
         books_path.write_bytes(build_books([
             asset,
             f"../../{source}/payload",
@@ -500,7 +500,7 @@ def _borrow_pass_file(udid: str, absolute: str) -> bytes | None:
 def _write_preview(payload: bytes, dest: Path) -> None:
     dest.parent.mkdir(parents=True, exist_ok=True)
     if payload.startswith(b"%PDF"):
-        with tempfile.TemporaryDirectory(prefix="aircard-preview-") as temporary:
+        with tempfile.TemporaryDirectory(prefix="facelift-preview-") as temporary:
             pdf_path = Path(temporary) / "card.pdf"
             png_path = Path(temporary) / "card.png"
             pdf_path.write_bytes(payload)

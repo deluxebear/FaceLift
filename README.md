@@ -1,4 +1,4 @@
-# AirCard 🎴
+# FaceLift 🎴
 
 > **Apple Wallet Card Skinner & Lockscreen Passcode Themer for iOS 18+ (No Jailbreak Required)**  
 > **Tested on iOS 27 release.**
@@ -26,24 +26,24 @@
 ## Installation
 
 ### macOS (Universal DMG)
-1. Download **`AirCard.dmg`** from [Releases](https://github.com/mak5er/AirCard/releases).
-2. Open `AirCard.dmg` and drag **`AirCard.app`** into your **Applications** folder.
+1. Download **`FaceLift.dmg`** from [Releases](https://github.com/jetems/FaceLift/releases).
+2. Open `FaceLift.dmg` and drag **`FaceLift.app`** into your **Applications** folder.
 3. Fully compatible with both **Apple Silicon** and **Intel (x86)** Macs.
 
 > [!NOTE]
 > **First Launch on macOS (Gatekeeper):**
 > If macOS displays an unidentified developer prompt on first launch:
-> - **Method 1 (UI):** Right-click (or Control-click) `AirCard.app` in Applications ➔ click **Open** ➔ click **Open**.
+> - **Method 1 (UI):** Right-click (or Control-click) `FaceLift.app` in Applications ➔ click **Open** ➔ click **Open**.
 > - **Method 2 (Terminal):**
 >   ```sh
->   sudo xattr -cr /Applications/AirCard.app
+>   sudo xattr -cr /Applications/FaceLift.app
 >   ```
 
 ---
 
 ## How to Customize Apple Wallet Cards
 1. Connect your iPhone to your Mac via USB cable and ensure it is unlocked and trusted.
-2. In AirCard, stay on the **Wallet Cards** tab and click **Scan Cards**.
+2. In FaceLift, stay on the **Wallet Cards** tab and click **Scan Cards**.
 3. On your iPhone:
    - **Double-click the Side (Power) button** to open Apple Pay.
    - Authenticate with **Face ID**.
@@ -55,27 +55,27 @@
 ---
 
 ## How to Apply Lockscreen Passcode Themes (.passthm)
-1. Switch to the **Passcode Themes** tab at the top of AirCard.
+1. Switch to the **Passcode Themes** tab at the top of FaceLift.
 2. Drag & drop any `.passthm` file into the app (or click **Choose .passthm File**).
-3. AirCard will inspect the theme and display an interactive preview on the numeric keypad (0–9, *, #).
+3. FaceLift will inspect the theme and display an interactive preview on the numeric keypad (0–9, *, #).
 4. Click **Apply Passcode Theme**.
 5. Restart your iPhone to reload the lock screen cache and see your custom passcode buttons!
 
 > [!TIP]
 > **Universal Language & Bold Text Support:**  
-> AirCard automatically expands and flashes custom keypad assets for all system locales (English, Ukrainian, Russian, Spanish, German, French, etc.) and generates both standard and **Bold Text** cache bitmaps (`--white` and `--white-bold`), ensuring your theme works regardless of your iOS language or accessibility display settings!
+> FaceLift automatically expands and flashes custom keypad assets for all system locales (English, Ukrainian, Russian, Spanish, German, French, etc.) and generates both standard and **Bold Text** cache bitmaps (`--white` and `--white-bold`), ensuring your theme works regardless of your iOS language or accessibility display settings!
 
 ---
 
 ## Building from Source
 
 ```sh
-git clone https://github.com/mak5er/AirCard.git
-cd AirCard
+git clone https://github.com/jetems/FaceLift.git
+cd FaceLift
 chmod +x build.sh
 ./build.sh
 ```
-This builds universal binaries (`arm64` + `x86_64`), bundles dependencies into `build/AirCard.app`, and outputs `build/AirCard.dmg`.
+This builds universal binaries (`arm64` + `x86_64`), bundles dependencies into `build/FaceLift.app`, and outputs `build/FaceLift.dmg`.
 
 ---
 
@@ -85,15 +85,5 @@ This builds universal binaries (`arm64` + `x86_64`), bundles dependencies into `
 - **[AirLift](https://github.com/0xjohnnydev/airlift)** by **[0xjohnny (@0xjohnnydev)](https://github.com/0xjohnnydev)**: Original AirTraffic/ATAirlock sandbox escape and proof of concept underlying `AirliftFFI`.
 
 ## Credits
+- FaceLift is based on **[AirCard](https://github.com/mak5er/AirCard)** by **Johnny Franks (@Mak5er)**, licensed under the MIT License.
 - Core exploit based on `airlift` (AirTraffic sync escape).
-
----
-
-## Support
-
-If you find AirCard useful, you can support future development:
-
-- **PayPal**: [Donate via PayPal](https://www.paypal.com/donate/?hosted_button_id=98QRTC2HFRA4Y)
-- **TON**: `UQBm9KPhtMw-XVVjirUoa09wzrlyWsbeZhKfefl1Uw-qNZ-r`
-- **USDT (TRC20)**: `TDkDMCyjYxgvkWUnQiF5Erk2RyPQMT6G1n`
-- **USDT / BNB (BEP20)**: `0x0954dc491c502849d04956ef74634aa5931a08e8`

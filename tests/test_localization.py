@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SWIFT = ROOT / "AirCardApp.swift"
+SWIFT = ROOT / "FaceLiftApp.swift"
 CATALOGS = {
     "en": ROOT / "Resources" / "en.lproj" / "Localizable.strings",
     "zh-Hans": ROOT / "Resources" / "zh-Hans.lproj" / "Localizable.strings",

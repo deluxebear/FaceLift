@@ -4,7 +4,7 @@ from pathlib import Path
 # Add project root to sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from aircard_backend import parse_passthm_archive, KEYPAD_SUBTEXTS
+from facelift_backend import parse_passthm_archive, KEYPAD_SUBTEXTS
 
 
 def verify_archive_extraction(passthm_path: str, name: str):
@@ -136,7 +136,7 @@ def test_cmd_flash_passthm_batch_fast():
     import json
     from contextlib import redirect_stdout
     from unittest.mock import Mock, patch
-    import aircard_backend
+    import facelift_backend
 
     minepass_path = "/Users/mak5er/Downloads/MinePass_Nightly.passthm"
     mock_batch = Mock(return_value=True)
@@ -144,11 +144,11 @@ def test_cmd_flash_passthm_batch_fast():
 
     buf = io.StringIO()
     with (
-        patch.object(aircard_backend, "write_files_batch", mock_batch),
-        patch.object(aircard_backend, "write_file", mock_single),
+        patch.object(facelift_backend, "write_files_batch", mock_batch),
+        patch.object(facelift_backend, "write_file", mock_single),
         redirect_stdout(buf),
     ):
-        ok = aircard_backend.cmd_flash_passthm(
+        ok = facelift_backend.cmd_flash_passthm(
             "dummy_udid",
             minepass_path,
             telephony_ver="TelephonyUI-10",
@@ -181,7 +181,7 @@ def test_cmd_flash_passthm_fallback():
     import json
     from contextlib import redirect_stdout
     from unittest.mock import Mock, patch
-    import aircard_backend
+    import facelift_backend
 
     minepass_path = "/Users/mak5er/Downloads/MinePass_Nightly.passthm"
     mock_batch = Mock(return_value=False)  # Batch fails!
@@ -189,11 +189,11 @@ def test_cmd_flash_passthm_fallback():
 
     buf = io.StringIO()
     with (
-        patch.object(aircard_backend, "write_files_batch", mock_batch),
-        patch.object(aircard_backend, "write_file", mock_single),
+        patch.object(facelift_backend, "write_files_batch", mock_batch),
+        patch.object(facelift_backend, "write_file", mock_single),
         redirect_stdout(buf),
     ):
-        ok = aircard_backend.cmd_flash_passthm(
+        ok = facelift_backend.cmd_flash_passthm(
             "dummy_udid",
             minepass_path,
             telephony_ver="TelephonyUI-10",

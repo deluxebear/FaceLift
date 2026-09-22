@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Backend engine for AirCard native macOS GUI app.
+Backend engine for FaceLift native macOS GUI app.
 """
 from __future__ import annotations
 
@@ -19,8 +19,8 @@ from pathlib import Path
 script_dir = Path(__file__).resolve().parent
 bundled_bin = script_dir / "bin"
 bundled_lib = script_dir / "lib"
-app_bin = Path("/Applications/AirCard.app/Contents/Resources/bin")
-app_lib = Path("/Applications/AirCard.app/Contents/Resources/lib")
+app_bin = Path("/Applications/FaceLift.app/Contents/Resources/bin")
+app_lib = Path("/Applications/FaceLift.app/Contents/Resources/lib")
 
 paths_to_add = [
     str(bundled_bin),
@@ -51,7 +51,7 @@ from apply_card_skin import (
     DEVICE_HELPER,
 )
 from card_assets import CACHE_FILES, build_card_assets
-from aircard import (
+from facelift import (
     find_device_helper,
     get_connected_device,
     load_saved_cards,

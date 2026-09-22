@@ -15,7 +15,7 @@ enum AppLanguageChoice: String, CaseIterable, Identifiable {
 @MainActor
 final class AppLanguage: ObservableObject {
     static let shared = AppLanguage()
-    static let storageKey = "AirCard.uiLanguage"
+    static let storageKey = "FaceLift.uiLanguage"
 
     @Published var choice: AppLanguageChoice {
         didSet {
@@ -665,7 +665,7 @@ class PasscodeThemeExporter {
         language: PasscodeLanguageTarget = .all,
         boldMode: PasscodeBoldTarget = .both
     ) -> URL? {
-        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("AirCard_Custom_\(UUID().uuidString).passthm")
+        let tempURL = FileManager.default.temporaryDirectory.appendingPathComponent("FaceLift_Custom_\(UUID().uuidString).passthm")
         do {
             try exportTheme(keys: keys, targetURL: tempURL, language: language, boldMode: boldMode)
             return tempURL
@@ -722,7 +722,8 @@ class AppViewModel: ObservableObject {
     
     private var scanProcess: Process?
     private let scriptDir: String
-    private let storageKey = "mak5er.aircard.savedCards"
+    private let storageKey = "jetems.facelift.savedCards"
+    private let legacyStorageKey0 = "mak5er.aircard.savedCards"
     private let legacyStorageKey1 = "mak5er.savedCards"
     private let legacyStorageKey2 = "LumiCards.savedCards"
     
@@ -734,9 +735,9 @@ class AppViewModel: ObservableObject {
     
     init() {
         let cwd = FileManager.default.currentDirectoryPath
-        if let resPath = Bundle.main.resourcePath, FileManager.default.fileExists(atPath: resPath + "/aircard_backend.py") {
+        if let resPath = Bundle.main.resourcePath, FileManager.default.fileExists(atPath: resPath + "/facelift_backend.py") {
             self.scriptDir = resPath
-        } else if FileManager.default.fileExists(atPath: cwd + "/aircard_backend.py") {
+        } else if FileManager.default.fileExists(atPath: cwd + "/facelift_backend.py") {
             self.scriptDir = cwd
         } else {
             self.scriptDir = Bundle.main.bundleURL.deletingLastPathComponent().path
@@ -798,7 +799,7 @@ class AppViewModel: ObservableObject {
         if let res = Bundle.main.resourceURL {
             candidates.append(res.appendingPathComponent("bin/device_helper").path)
         }
-        candidates.append("/Applications/AirCard.app/Contents/Resources/bin/device_helper")
+        candidates.append("/Applications/FaceLift.app/Contents/Resources/bin/device_helper")
         for path in candidates {
             if FileManager.default.isExecutableFile(atPath: path) {
                 return URL(fileURLWithPath: path)
@@ -821,10 +822,10 @@ class AppViewModel: ObservableObject {
         if let res = Bundle.main.resourceURL {
             extraPaths.insert(res.appendingPathComponent("bin").path, at: 0)
         }
-        extraPaths.insert("/Applications/AirCard.app/Contents/Resources/bin", at: 0)
+        extraPaths.insert("/Applications/FaceLift.app/Contents/Resources/bin", at: 0)
         env["PATH"] = (extraPaths + [path]).joined(separator: ":")
         
-        var libPaths = ["/Applications/AirCard.app/Contents/Resources/lib"]
+        var libPaths = ["/Applications/FaceLift.app/Contents/Resources/lib"]
         if let res = Bundle.main.resourceURL {
             libPaths.insert(res.appendingPathComponent("lib").path, at: 0)
         }
@@ -882,13 +883,15 @@ class AppViewModel: ObservableObject {
         
         if let saved = UserDefaults.standard.stringArray(forKey: storageKey), !saved.isEmpty {
             loaded.append(contentsOf: saved)
+        } else if let saved = UserDefaults.standard.stringArray(forKey: legacyStorageKey0), !saved.isEmpty {
+            loaded.append(contentsOf: saved)
         } else if let saved = UserDefaults.standard.stringArray(forKey: legacyStorageKey1), !saved.isEmpty {
             loaded.append(contentsOf: saved)
         } else if let saved = UserDefaults.standard.stringArray(forKey: legacyStorageKey2), !saved.isEmpty {
             loaded.append(contentsOf: saved)
         }
         
-        for p in ["~/.aircard_cards.json", "~/.lumicards_cards.json"] {
+        for p in ["~/.facelift_cards.json", "~/.aircard_cards.json", "~/.lumicards_cards.json"] {
             let jsonPath = NSString(string: p).expandingTildeInPath
             if let data = try? Data(contentsOf: URL(fileURLWithPath: jsonPath)),
                let jsonHashes = try? JSONDecoder().decode([String].self, from: data) {
@@ -919,8 +922,15 @@ class AppViewModel: ObservableObject {
     }
 
     static func storedSkinURL(for cardId: String) -> URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("AirCard/skins", isDirectory: true)
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let base = support.appendingPathComponent("FaceLift/skins", isDirectory: true)
+        // One-time migration of skins saved under the previous AirCard branding.
+        let legacyBase = support.appendingPathComponent("AirCard/skins", isDirectory: true)
+        if !FileManager.default.fileExists(atPath: base.path),
+           FileManager.default.fileExists(atPath: legacyBase.path) {
+            try? FileManager.default.createDirectory(at: base.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? FileManager.default.moveItem(at: legacyBase, to: base)
+        }
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         let allowed = CharacterSet(charactersIn: "-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_+=")
         let safe = cardId.unicodeScalars.allSatisfy { allowed.contains($0) } ? cardId : "card"
@@ -970,7 +980,7 @@ class AppViewModel: ObservableObject {
             process.executableURL = AppViewModel.pythonExecutableURL
             process.environment = AppViewModel.processEnvironment
             process.currentDirectoryURL = URL(fileURLWithPath: scriptDir)
-            process.arguments = ["aircard_backend.py", "--pull-card", udid, cardId, dest.path]
+            process.arguments = ["facelift_backend.py", "--pull-card", udid, cardId, dest.path]
             let pipe = Pipe()
             process.standardOutput = pipe
             process.standardError = FileHandle.nullDevice
@@ -1015,7 +1025,7 @@ class AppViewModel: ObservableObject {
         let hashes = cards.map { $0.id }
         UserDefaults.standard.set(hashes, forKey: storageKey)
         
-        let jsonPath = NSString(string: "~/.aircard_cards.json").expandingTildeInPath
+        let jsonPath = NSString(string: "~/.facelift_cards.json").expandingTildeInPath
         if let data = try? JSONEncoder().encode(hashes) {
             try? data.write(to: URL(fileURLWithPath: jsonPath), options: .atomic)
         }
@@ -1075,7 +1085,7 @@ class AppViewModel: ObservableObject {
             process.executableURL = AppViewModel.pythonExecutableURL
             process.environment = AppViewModel.processEnvironment
             process.currentDirectoryURL = URL(fileURLWithPath: scriptDir)
-            process.arguments = ["aircard_backend.py", "--device"]
+            process.arguments = ["facelift_backend.py", "--device"]
             
             let pipe = Pipe()
             process.standardOutput = pipe
@@ -1270,7 +1280,7 @@ class AppViewModel: ObservableObject {
             for (idx, card) in selectedCardsWithSkin.enumerated() {
                 guard let imgURL = card.customImageURL else { continue }
                 
-                let preparedPath = "/tmp/aircard_prep_\(idx).png"
+                let preparedPath = "/tmp/facelift_prep_\(idx).png"
                 
                 await MainActor.run {
                     self.setStatus("[%@/%@] Preparing skin for %@...", "\(idx + 1)", "\(selectedCardsWithSkin.count)", String(card.id.prefix(10)))
@@ -1286,7 +1296,7 @@ class AppViewModel: ObservableObject {
                     prepProcess.executableURL = AppViewModel.pythonExecutableURL
                     prepProcess.environment = AppViewModel.processEnvironment
                     prepProcess.currentDirectoryURL = URL(fileURLWithPath: scriptDir)
-                    prepProcess.arguments = ["aircard_backend.py", "--prepare-image", imgURL.path, preparedPath]
+                    prepProcess.arguments = ["facelift_backend.py", "--prepare-image", imgURL.path, preparedPath]
                     try? prepProcess.run()
                     prepProcess.waitUntilExit()
                 }
@@ -1296,7 +1306,7 @@ class AppViewModel: ObservableObject {
                 flashProcess.executableURL = AppViewModel.pythonExecutableURL
                 flashProcess.environment = AppViewModel.processEnvironment
                 flashProcess.currentDirectoryURL = URL(fileURLWithPath: scriptDir)
-                flashProcess.arguments = ["aircard_backend.py", "--flash", udid, card.id, preparedPath]
+                flashProcess.arguments = ["facelift_backend.py", "--flash", udid, card.id, preparedPath]
                 
                 let pipe = Pipe()
                 let errPipe = Pipe()
@@ -1416,7 +1426,7 @@ class AppViewModel: ObservableObject {
             proc.executableURL = AppViewModel.pythonExecutableURL
             proc.environment = AppViewModel.processEnvironment
             proc.currentDirectoryURL = URL(fileURLWithPath: scriptDir)
-            proc.arguments = ["aircard_backend.py", "--inspect-passthm", url.path]
+            proc.arguments = ["facelift_backend.py", "--inspect-passthm", url.path]
             
             let pipe = Pipe()
             proc.standardOutput = pipe
@@ -1488,7 +1498,7 @@ class AppViewModel: ObservableObject {
             proc.environment = AppViewModel.processEnvironment
             proc.currentDirectoryURL = URL(fileURLWithPath: scriptDir)
             proc.arguments = [
-                "aircard_backend.py",
+                "facelift_backend.py",
                 "--flash-passthm",
                 udid,
                 theme.filePath,
@@ -1885,7 +1895,7 @@ struct WalletCardView: View {
                             }
                         } else if let img = item as? NSImage {
                             let tempURL = FileManager.default.temporaryDirectory
-                                .appendingPathComponent("aircard_drop_\(UUID().uuidString).png")
+                                .appendingPathComponent("facelift_drop_\(UUID().uuidString).png")
                             if let tiff = img.tiffRepresentation,
                                let rep = NSBitmapImageRep(data: tiff),
                                let pngData = rep.representation(using: .png, properties: [:]) {
@@ -2095,7 +2105,7 @@ struct ContentView: View {
             
             VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
-                    Text("AirCard")
+                    Text("FaceLift")
                         .font(.title2)
                         .fontWeight(.bold)
                     Text("v1.2.3")
@@ -3549,7 +3559,7 @@ struct ContentView: View {
                 .font(.system(size: 44))
                 .foregroundColor(.accentColor)
             
-            Text("AirCard")
+            Text("FaceLift")
                 .font(.title2)
                 .fontWeight(.bold)
             
@@ -3805,7 +3815,7 @@ struct ContentView: View {
 // MARK: - App Entry Point
 
 @main
-struct AirCardApp: App {
+struct FaceLiftApp: App {
     @ObservedObject private var language = AppLanguage.shared
 
     var body: some Scene {

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-AirCard — Apple Wallet Card Skinner (via airlift exploit).
+FaceLift — Apple Wallet Card Skinner (via airlift exploit).
 Customizes Apple Pay and Wallet card skins without a jailbreak.
 """
 
@@ -21,7 +21,7 @@ from pathlib import Path
 script_dir = Path(__file__).resolve().parent
 for bin_path in [
     str(script_dir / "bin"),
-    "/Applications/AirCard.app/Contents/Resources/bin",
+    "/Applications/FaceLift.app/Contents/Resources/bin",
     "/opt/homebrew/bin",
     "/usr/local/bin",
     "/usr/bin",
@@ -45,7 +45,8 @@ TARGET_ASSETS = [
 
 CACHE_FILES = ["FrontFace", "Preview"]
 
-CARDS_STORE_PATH = Path.home() / ".aircard_cards.json"
+CARDS_STORE_PATH = Path.home() / ".facelift_cards.json"
+LEGACY_AIRCARD_STORE_PATH = Path.home() / ".aircard_cards.json"
 LEGACY_STORE_PATH = Path.home() / ".lumicards_cards.json"
 PREDEFINED_CARDS = []
 
@@ -58,7 +59,7 @@ CARD_REGEXES = [
 
 def load_saved_cards() -> list[str]:
     """Loads saved card hashes from local storage."""
-    for store in [CARDS_STORE_PATH, LEGACY_STORE_PATH]:
+    for store in [CARDS_STORE_PATH, LEGACY_AIRCARD_STORE_PATH, LEGACY_STORE_PATH]:
         if store.is_file():
             try:
                 data = json.loads(store.read_text("utf-8"))
@@ -263,7 +264,7 @@ def prepare_card_image(input_path: str) -> bytes:
         pass
 
     # Fallback to macOS sips
-    temp_out = f"/tmp/aircard_sips_{os.getpid()}.png"
+    temp_out = f"/tmp/facelift_sips_{os.getpid()}.png"
     try:
         subprocess.check_call([
             "/usr/bin/sips",
@@ -281,7 +282,7 @@ def prepare_card_image(input_path: str) -> bytes:
 
 def main():
     print("=" * 60)
-    print("🎴 AirCard — Apple Wallet Card Skinner (via airlift)")
+    print("🎴 FaceLift — Apple Wallet Card Skinner (via airlift)")
     print("=" * 60)
 
     # 1. Device discovery

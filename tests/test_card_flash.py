@@ -8,7 +8,7 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-import aircard_backend
+import facelift_backend
 import apply_card_skin
 
 
@@ -25,10 +25,10 @@ class CardFlashTests(unittest.TestCase):
             write_file = Mock(return_value=True)
 
             with (
-                patch.object(aircard_backend, "write_file", write_file),
+                patch.object(facelift_backend, "write_file", write_file),
                 redirect_stdout(io.StringIO()),
             ):
-                result = aircard_backend.cmd_flash("device", "card", str(image_path))
+                result = facelift_backend.cmd_flash("device", "card", str(image_path))
 
         self.assertTrue(result)
 
@@ -50,7 +50,7 @@ class CardFlashTests(unittest.TestCase):
 
         cache_entries = {(target, leaf) for _, target, leaf, _ in writes}
         for extension in (".cache", ".pkcache"):
-            for leaf in aircard_backend.CACHE_FILES:
+            for leaf in facelift_backend.CACHE_FILES:
                 self.assertIn(
                     (f"/var/mobile/Library/Passes/Cards/card{extension}", leaf),
                     cache_entries,
@@ -66,10 +66,10 @@ class CardFlashTests(unittest.TestCase):
             output = io.StringIO()
 
             with (
-                patch.object(aircard_backend, "write_file", write_file),
+                patch.object(facelift_backend, "write_file", write_file),
                 redirect_stdout(output),
             ):
-                result = aircard_backend.cmd_flash("device", "card", str(image_path))
+                result = facelift_backend.cmd_flash("device", "card", str(image_path))
 
         messages = [json.loads(line) for line in output.getvalue().splitlines()]
         self.assertFalse(result)
@@ -84,15 +84,15 @@ class CardFlashTests(unittest.TestCase):
             output = io.StringIO()
 
             with (
-                patch.object(aircard_backend, "write_file", write_file),
+                patch.object(facelift_backend, "write_file", write_file),
                 patch.object(
-                    aircard_backend,
+                    facelift_backend,
                     "build_card_assets",
                     side_effect=subprocess.CalledProcessError(1, ["sips"]),
                 ),
                 redirect_stdout(output),
             ):
-                result = aircard_backend.cmd_flash("device", "card", str(image_path))
+                result = facelift_backend.cmd_flash("device", "card", str(image_path))
 
         messages = [json.loads(line) for line in output.getvalue().splitlines()]
         self.assertFalse(result)

@@ -1,9 +1,9 @@
-# AirCard Passcode Theme Creator & Universal Flasher Design Spec
+# FaceLift Passcode Theme Creator & Universal Flasher Design Spec
 
 ## 1. Overview
 This specification details the architecture, data models, UI components, and implementation logic for:
-1. **Universal Passcode Flasher (`aircard_backend.py`)**: Fixing compatibility with legacy/multi-lingual themes (such as `MinePass_Nightly.passthm` with `ru-` prefixes and varying subtext configurations) to ensure 100% reliable flashing regardless of device language or source archive structure.
-2. **Built-in Theme Creator (`AirCardApp.swift`)**: A visual editor inside the "Passcode" tab with two distinct creation modes:
+1. **Universal Passcode Flasher (`facelift_backend.py`)**: Fixing compatibility with legacy/multi-lingual themes (such as `MinePass_Nightly.passthm` with `ru-` prefixes and varying subtext configurations) to ensure 100% reliable flashing regardless of device language or source archive structure.
+2. **Built-in Theme Creator (`FaceLiftApp.swift`)**: A visual editor inside the "Passcode" tab with two distinct creation modes:
    - **Poster Slice (Puzzle)**: Slicing a single wallpaper/image across the authentic 3x4 iOS lockscreen passcode keypad geometry.
    - **Individual Keys (Per-Key)**: Customizing each digit (0–9) individually with drag-and-drop or file pickers.
 3. **Actions**: Instant flashing to connected iOS devices via `airlift` and exporting to standard `.passthm` zip archives.
@@ -11,7 +11,7 @@ This specification details the architecture, data models, UI components, and imp
 
 ---
 
-## 2. Universal Flasher Fix (`aircard_backend.py`)
+## 2. Universal Flasher Fix (`facelift_backend.py`)
 
 ### 2.1 Root Cause of Flashing Failures
 - Archives like `MinePass_Nightly.passthm` contain files named `ru-2-A B C--white.png` instead of `en-2-A B C--white.png`.
@@ -50,7 +50,7 @@ Destination directory: `/var/mobile/Library/Caches/{telephony_ver}` (e.g. `Telep
 ## 3. Passcode Theme Creator Architecture
 
 ### 3.1 Data Model
-In `AirCardApp.swift`:
+In `FaceLiftApp.swift`:
 ```swift
 enum PasscodeTabMode: String, CaseIterable, Identifiable {
     case applyTheme = "Apply .passthm"
@@ -107,7 +107,7 @@ struct KeypadButtonGeometry {
 ### 3.5 Direct Flash & Export Actions
 1. **Flash to iPhone**:
    - Compiles the current 10 images into temporary PNG files in an in-memory or temporary `.passthm` directory.
-   - Triggers `cmd_flash_passthm` in `aircard_backend.py`.
+   - Triggers `cmd_flash_passthm` in `facelift_backend.py`.
    - Uses device connection detection and updates progress bar step-by-step.
 2. **Export .passthm**:
    - Opens an `NSSavePanel` in English ("Save Passcode Theme").

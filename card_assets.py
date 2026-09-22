@@ -15,7 +15,7 @@ CACHE_FILES: Final = ("FrontFace", "PlaceHolder", "Preview")
 
 
 def build_card_assets(png_bytes: bytes) -> tuple[tuple[str, bytes], ...]:
-    with tempfile.TemporaryDirectory(prefix="aircard-assets-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="facelift-assets-") as temporary:
         png_path = Path(temporary) / "card.png"
         pdf_path = Path(temporary) / "card.pdf"
         png_path.write_bytes(png_bytes)
