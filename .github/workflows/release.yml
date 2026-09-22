@@ -103,7 +103,7 @@ jobs:
           xcrun stapler validate build/FaceLift.app
 
       - name: Upload DMG artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: FaceLift-${{ steps.version.outputs.version }}-dmg
           path: build/FaceLift.dmg
