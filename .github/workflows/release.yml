@@ -35,6 +35,49 @@ jobs:
             echo "version=0.0.0-dev.${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Configure code signing and notarization
+        env:
+          MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
+        run: |
+          if [ -z "$MACOS_CERT_P12" ] || [ -z "$MACOS_CERT_PASSWORD" ]; then
+            echo "No signing secrets configured — falling back to ad-hoc signing."
+            exit 0
+          fi
+          KEYCHAIN_PATH="$RUNNER_TEMP/facelift.keychain-db"
+          KEYCHAIN_PASSWORD="$(uuidgen)"
+          echo "$MACOS_CERT_P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$RUNNER_TEMP/cert.p12" -P "$MACOS_CERT_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: \
+            -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain
+          IDENTITY=$(security find-identity -v -p codesigning "$KEYCHAIN_PATH" \
+            | grep "Developer ID Application" | head -1 \
+            | sed -E 's/.*"(.*)".*/\1/')
+          if [ -z "$IDENTITY" ]; then
+            echo "::error::No 'Developer ID Application' certificate found in the imported p12."
+            exit 1
+          fi
+          echo "SIGN_IDENTITY=$IDENTITY" >> "$GITHUB_ENV"
+          echo "Signing identity: $IDENTITY"
+          if [ -n "$ASC_KEY_ID" ] && [ -n "$ASC_ISSUER_ID" ] && [ -n "$ASC_KEY_P8" ]; then
+            echo "$ASC_KEY_P8" | base64 --decode > "$RUNNER_TEMP/AuthKey.p8"
+            echo "ASC_KEY_PATH=$RUNNER_TEMP/AuthKey.p8" >> "$GITHUB_ENV"
+            echo "ASC_KEY_ID=$ASC_KEY_ID" >> "$GITHUB_ENV"
+            echo "ASC_ISSUER_ID=$ASC_ISSUER_ID" >> "$GITHUB_ENV"
+            echo "NOTARIZE=1" >> "$GITHUB_ENV"
+            echo "Notarization enabled via App Store Connect API key."
+          else
+            echo "::warning::Signing configured but ASC API key secrets missing — skipping notarization."
+          fi
+
       - name: Build FaceLift.app and FaceLift.dmg
         env:
           APP_VERSION: ${{ steps.version.outputs.version }}
@@ -49,6 +92,14 @@ jobs:
           test "$PLIST_VERSION" = "$APP_VERSION"
         env:
           APP_VERSION: ${{ steps.version.outputs.version }}
+
+      - name: Verify signature and notarization
+        if: env.SIGN_IDENTITY != ''
+        run: |
+          codesign --verify --deep --strict --verbose=2 build/FaceLift.app
+          spctl --assess --type execute --verbose=2 build/FaceLift.app || true
+          xcrun stapler validate build/FaceLift.app
+          xcrun stapler validate build/FaceLift.dmg
 
       - name: Upload DMG artifact
         uses: actions/upload-artifact@v4

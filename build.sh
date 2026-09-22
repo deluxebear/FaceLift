@@ -10,6 +10,13 @@ make all
 
 APP_NAME="FaceLift"
 APP_VERSION="${APP_VERSION:-0.9.0}"
+# SIGN_IDENTITY: "-" keeps the current ad-hoc signing for local development.
+# Set it to "Developer ID Application: ..." (or let CI set it) to sign for
+# distribution. NOTARIZE=1 additionally notarizes and staples when the
+# App Store Connect API key env vars (ASC_KEY_PATH/ASC_KEY_ID/ASC_ISSUER_ID)
+# are present.
+SIGN_IDENTITY="${SIGN_IDENTITY:--}"
+NOTARIZE="${NOTARIZE:-0}"
 APP_DIR="build/${APP_NAME}.app"
 CONTENTS_DIR="${APP_DIR}/Contents"
 MACOS_DIR="${CONTENTS_DIR}/MacOS"
@@ -107,7 +114,31 @@ chmod +x "${MACOS_DIR}/FaceLift"
 echo "==> [5/6] Setting permissions and signing ${APP_NAME}.app bundle..."
 chmod -R 755 "$APP_DIR"
 xattr -cr "$APP_DIR" 2>/dev/null || true
-codesign --force --deep --sign - "$APP_DIR"
+if [ "$SIGN_IDENTITY" != "-" ]; then
+    echo "    Signing with: $SIGN_IDENTITY (Hardened Runtime)"
+    # Nested Mach-O helpers must be signed before the enclosing bundle.
+    for helper in "$BIN_DIR"/*; do
+        codesign --force --options runtime --timestamp \
+            --sign "$SIGN_IDENTITY" "$helper"
+    done
+    codesign --force --deep --options runtime --timestamp \
+        --sign "$SIGN_IDENTITY" "$APP_DIR"
+    codesign --verify --deep --strict --verbose=2 "$APP_DIR"
+    if [ "$NOTARIZE" = "1" ]; then
+        echo "    Notarizing ${APP_NAME}.app..."
+        NOTARY_ZIP="build/${APP_NAME}-notary.zip"
+        ditto -c -k --keepParent "$APP_DIR" "$NOTARY_ZIP"
+        xcrun notarytool submit "$NOTARY_ZIP" \
+            --key "$ASC_KEY_PATH" \
+            --key-id "$ASC_KEY_ID" \
+            --issuer "$ASC_ISSUER_ID" \
+            --wait
+        rm -f "$NOTARY_ZIP"
+        xcrun stapler staple "$APP_DIR"
+    fi
+else
+    codesign --force --deep --sign - "$APP_DIR"
+fi
 
 echo "==> [6/6] Generating styled DMG (${APP_NAME}.dmg)..."
 DMG_STAGING="/tmp/facelift_dmg_staging"
@@ -135,6 +166,11 @@ if command -v create-dmg >/dev/null 2>&1; then
 else
     ln -s /Applications "$DMG_STAGING/Applications"
     hdiutil create -volname "FaceLift" -srcfolder "$DMG_STAGING" -ov -format UDZO "build/${APP_NAME}.dmg"
+fi
+
+# Staple the notarization ticket to the DMG so it verifies offline too.
+if [ "$NOTARIZE" = "1" ] && [ "$SIGN_IDENTITY" != "-" ]; then
+    xcrun stapler staple "build/${APP_NAME}.dmg"
 fi
 
 echo "============================================================"
