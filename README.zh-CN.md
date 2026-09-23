@@ -10,6 +10,7 @@
 
 ## FaceLift 新增功能
 FaceLift 基于 AirCard v1.2.3 继续开发,新增以下内容:
+- 💎 **Liquid Glass 界面(macOS 26+):** 整个界面现已采用 Apple 的 Liquid Glass 设计语言——悬浮的玻璃标题栏、工具栏与状态栏可将下方滚动内容实时模糊,卡片面板、键盘按键、拖放区与按钮均为玻璃质感(`glassEffect`、`glassProminent`、`GlassEffectContainer`)。在 macOS 14/15 上所有玻璃表面自动回退为最接近的传统 Material,旧系统不受影响。
 - 🖼️ **从 iPhone 读回卡面:** 卡片已存储的卡面会被拉取到 Mac 预览中,并在多次启动间保留——已刷过的卡面不必重新设置。
 - 🎯 **按需读取卡面:** 「读取选中卡面」只拉取勾选的卡片,卡片再多也不会拖慢速度。
 - 🔌 **USB / Wi-Fi 连接识别:** 状态胶囊显示 iPhone 当前通过 USB(绿灯)还是 Wi-Fi 隧道(橙灯)连接,判定依据 usbmuxd 的权威传输信息。依赖 USB 的操作(如读取卡面)在 Wi-Fi 下会给出警告。
@@ -18,6 +19,7 @@ FaceLift 基于 AirCard v1.2.3 继续开发,新增以下内容:
 
 ## 功能特性
 - 🎨 **自定义卡面:** 为 Apple Pay 和 Wallet 卡片设置自定义图案、纹理或银行标志。
+- 💎 **Liquid Glass 界面:** 原生支持 macOS 26+ 的 Liquid Glass 材质,macOS 14/15 自动回退为 Material。
 - 🔢 **锁屏密码主题(.passthm):** 将流行 `.passthm` 主题中的自定义按键贴图直接应用到 iOS 18+ 锁屏。
 - 🧩 **密码主题创作器:** 从单张壁纸自动生成(无缝海报切片),或逐键自定义构建主题。
 - 🔍 **交互式照片取景:** 在按键内直接平移、缩放图片,并实时预览 iPhone 效果。

@@ -9,7 +9,7 @@ make clean
 make all
 
 APP_NAME="FaceLift"
-APP_VERSION="${APP_VERSION:-0.9.0}"
+APP_VERSION="${APP_VERSION:-0.10.0}"
 # SIGN_IDENTITY: "-" keeps the current ad-hoc signing for local development.
 # Set it to "Developer ID Application: ..." (or let CI set it) to sign for
 # distribution. NOTARIZE=1 additionally notarizes and staples when the
@@ -59,9 +59,9 @@ cat << EOF > "${CONTENTS_DIR}/Info.plist"
     <key>CFBundleShortVersionString</key>
     <string>${APP_VERSION}</string>
     <key>CFBundleVersion</key>
-    <string>9</string>
+    <string>10</string>
     <key>LSMinimumSystemVersion</key>
-    <string>12.0</string>
+    <string>14.0</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSPrincipalClass</key>
@@ -99,10 +99,19 @@ for tool in device_helper airtraffic_host; do
 done
 
 echo "==> [4/6] Compiling universal Swift binary (arm64 + x86_64)..."
+# A macOS 26+ SDK is required to compile the Liquid Glass UI (glassEffect and
+# friends ship in MacOSX26/27 SDKs); the binary still targets macOS 14 at
+# runtime via availability checks.
 if [ -z "${SWIFT_SDK:-}" ]; then
     SWIFT_SDK="$(xcrun --sdk macosx --show-sdk-path)"
-    CLT_SWIFTUI_SDK="/Library/Developer/CommandLineTools/SDKs/MacOSX26.sdk"
-    if [ "$(xcode-select -p)" = "/Library/Developer/CommandLineTools" ] && [ -d "$CLT_SWIFTUI_SDK" ]; then
+    CLT_SWIFTUI_SDK=""
+    for sdk in MacOSX27.sdk MacOSX26.sdk; do
+        if [ -d "/Library/Developer/CommandLineTools/SDKs/$sdk" ]; then
+            CLT_SWIFTUI_SDK="/Library/Developer/CommandLineTools/SDKs/$sdk"
+            break
+        fi
+    done
+    if [ "$(xcode-select -p)" = "/Library/Developer/CommandLineTools" ] && [ -n "$CLT_SWIFTUI_SDK" ]; then
         SWIFT_SDK="$CLT_SWIFTUI_SDK"
     fi
 fi

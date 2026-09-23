@@ -2,6 +2,184 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
+// MARK: - Liquid Glass Design System
+//
+// macOS 26+ renders real Liquid Glass surfaces (glassEffect / glassProminent /
+// GlassEffectContainer). On macOS 14/15 every helper below falls back to the
+// closest classic Material so the deployment target stays at macOS 14.
+
+enum GlassDesign {
+    static let supportsGlass: Bool = {
+        if #available(macOS 26.0, *) { return true }
+        return false
+    }()
+}
+
+@available(macOS 26.0, *)
+private func faceLiftGlass(_ tint: Color?, _ interactive: Bool) -> Glass {
+    var glass = Glass.regular
+    if let tint { glass = glass.tint(tint) }
+    if interactive { glass = glass.interactive() }
+    return glass
+}
+
+@ViewBuilder
+func faceLiftDivider() -> some View {
+    if #available(macOS 26.0, *) {
+        EmptyView()
+    } else {
+        Divider()
+    }
+}
+
+extension View {
+    /// Floating glass panel (cards, side panels, pills). Falls back to a
+    /// translucent control-background fill on older systems.
+    @ViewBuilder
+    func faceLiftPanel(
+        cornerRadius: CGFloat,
+        tint: Color? = nil,
+        interactive: Bool = false,
+        fallback: Color = Color(NSColor.controlBackgroundColor).opacity(0.5)
+    ) -> some View {
+        if #available(macOS 26.0, *) {
+            self.glassEffect(
+                faceLiftGlass(tint, interactive),
+                in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            )
+        } else {
+            self.background(
+                fallback,
+                in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            )
+        }
+    }
+
+    /// Pill/capsule surface with a Material fallback.
+    @ViewBuilder
+    func faceLiftCapsule(
+        tint: Color? = nil,
+        interactive: Bool = false,
+        fallbackMaterial: Material = .ultraThinMaterial
+    ) -> some View {
+        if #available(macOS 26.0, *) {
+            self.glassEffect(faceLiftGlass(tint, interactive), in: Capsule())
+        } else {
+            self.background(fallbackMaterial, in: Capsule())
+        }
+    }
+
+    /// Tinted accent capsule (version badge) with a solid-color fallback.
+    @ViewBuilder
+    func faceLiftTintedCapsule(fallback: Color) -> some View {
+        if #available(macOS 26.0, *) {
+            self.glassEffect(Glass.regular.tint(Color.accentColor), in: Capsule())
+        } else {
+            self.background(fallback, in: Capsule())
+        }
+    }
+
+    /// Full-width chrome bar. On macOS 26+ the bar is Liquid Glass, so window
+    /// content scrolling underneath shows through as a live blur.
+    @ViewBuilder
+    func faceLiftChrome() -> some View {
+        if #available(macOS 26.0, *) {
+            self.glassEffect(.regular, in: Rectangle())
+        } else {
+            self
+        }
+    }
+
+    /// Opaque per-section background, only on pre-Liquid-Glass systems.
+    @ViewBuilder
+    func faceLiftChromeSection(_ color: NSColor) -> some View {
+        if #available(macOS 26.0, *) {
+            self
+        } else {
+            self.background(Color(color))
+        }
+    }
+
+    /// Prominent call-to-action button (glass prominent on macOS 26+).
+    @ViewBuilder
+    func faceLiftProminentButton() -> some View {
+        if #available(macOS 26.0, *) {
+            self.buttonStyle(.glassProminent)
+        } else {
+            self.buttonStyle(.borderedProminent)
+        }
+    }
+
+    /// Secondary button (glass on macOS 26+).
+    @ViewBuilder
+    func faceLiftSecondaryButton() -> some View {
+        if #available(macOS 26.0, *) {
+            self.buttonStyle(.glass)
+        } else {
+            self.buttonStyle(.bordered)
+        }
+    }
+
+    /// Groups sibling glass shapes so nearby surfaces blend and morph.
+    @ViewBuilder
+    func faceLiftGlassGroup(spacing: CGFloat = 12) -> some View {
+        if #available(macOS 26.0, *) {
+            GlassEffectContainer(spacing: spacing) { self }
+        } else {
+            self
+        }
+    }
+
+    /// Activity console backdrop: glass on macOS 26+, opaque text background before.
+    @ViewBuilder
+    func faceLiftLogBackground() -> some View {
+        if #available(macOS 26.0, *) {
+            self.glassEffect(.regular, in: Rectangle())
+        } else {
+            self.background(Color(NSColor.textBackgroundColor))
+        }
+    }
+
+    /// Live-scanner banner: tinted glass band on macOS 26+.
+    @ViewBuilder
+    func faceLiftBannerSurface() -> some View {
+        if #available(macOS 26.0, *) {
+            self.glassEffect(Glass.regular.tint(Color.blue.opacity(0.16)), in: Rectangle())
+        } else {
+            self.background(Color.blue.opacity(0.1))
+        }
+    }
+
+    /// Interior fill for dashed drop zones.
+    @ViewBuilder
+    func faceLiftDropZoneFill(cornerRadius: CGFloat) -> some View {
+        if #available(macOS 26.0, *) {
+            Color.clear.glassEffect(
+                .regular,
+                in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            )
+        } else {
+            Color(NSColor.controlBackgroundColor).opacity(0.4).cornerRadius(cornerRadius)
+        }
+    }
+}
+
+/// Translucent keypad key surface: real interactive Liquid Glass on macOS 26+,
+/// a white translucent circle on older systems.
+struct KeypadKeySurface: View {
+    var body: some View {
+        if #available(macOS 26.0, *) {
+            Color.clear
+                .frame(width: KeypadLayout.buttonDiameter, height: KeypadLayout.buttonDiameter)
+                .glassEffect(Glass.regular.interactive(), in: Circle())
+        } else {
+            Circle()
+                .fill(Color.white.opacity(0.18))
+                .frame(width: KeypadLayout.buttonDiameter, height: KeypadLayout.buttonDiameter)
+        }
+    }
+}
+
 // MARK: - Interface language
 
 enum AppLanguageChoice: String, CaseIterable, Identifiable {
@@ -1794,8 +1972,7 @@ struct WalletCardView: View {
                                         .fontWeight(.semibold)
                                         .padding(.horizontal, 12)
                                         .padding(.vertical, 6)
-                                        .background(.ultraThinMaterial)
-                                        .cornerRadius(20)
+                                        .faceLiftCapsule(interactive: true, fallbackMaterial: .ultraThinMaterial)
                                         .shadow(radius: 4)
                                     Spacer()
                                 }
@@ -1944,8 +2121,7 @@ struct WalletCardView: View {
                 }
                 .padding(.horizontal, 6)
                 .padding(.vertical, 3)
-                .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(6)
+                .faceLiftPanel(cornerRadius: 6, fallback: Color(NSColor.controlBackgroundColor))
                 
                 Spacer()
                 
@@ -1969,10 +2145,7 @@ struct WalletCardView: View {
             .padding(.horizontal, 4)
         }
         .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color(NSColor.controlBackgroundColor).opacity(0.4))
-        )
+        .faceLiftPanel(cornerRadius: 18, fallback: Color(NSColor.controlBackgroundColor).opacity(0.4))
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .stroke(card.isSelected ? Color.accentColor.opacity(0.3) : Color.clear, lineWidth: 1)
@@ -1996,37 +2169,7 @@ struct ContentView: View {
     }
     
     var body: some View {
-        VStack(spacing: 0) {
-            // 1. Top Header Bar
-            headerView
-                .padding(.leading, 78)
-                .padding(.trailing, 20)
-                .frame(height: 54)
-                .background(Color(NSColor.controlBackgroundColor))
-            
-            Divider()
-            
-            // 2. Control Toolbar (Unified across tabs to prevent resizing/jumping)
-            Group {
-                if vm.selectedTab == .walletCards {
-                    toolbarView
-                } else {
-                    passcodeToolbarView
-                }
-            }
-            .frame(height: 48)
-            .padding(.horizontal, 20)
-            .background(Color(NSColor.windowBackgroundColor))
-            
-            Divider()
-            
-            // 3. Live Scanner Notice Banner (if active)
-            if vm.selectedTab == .walletCards && vm.isScanningCards {
-                scanningNoticeBanner
-                Divider()
-            }
-            
-            // 4. Main Workspace
+        Group {
             if vm.selectedTab == .walletCards {
                 ScrollView {
                     if vm.cards.isEmpty {
@@ -2049,6 +2192,7 @@ struct ContentView: View {
                             }
                         }
                         .padding(20)
+                        .faceLiftGlassGroup()
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -2056,22 +2200,12 @@ struct ContentView: View {
                 passcodeThemeWorkspaceView
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            
-            // 5. Collapsible Activity Console (if open or flashing)
-            if vm.showLogs {
-                Divider()
-                activityLogView
-            }
-            
-            Divider()
-            
-            // 6. Bottom Action & Status Bar
-            bottomBarView
-                .padding(.horizontal, 20)
-                .padding(.vertical, 10)
-                .background(Color(NSColor.controlBackgroundColor))
         }
         .frame(minWidth: 880, minHeight: 680)
+        // Floating chrome: workspace content scrolls underneath, so the
+        // Liquid Glass header/toolbar/status bars blur live content on macOS 26+.
+        .safeAreaInset(edge: .top, spacing: 0) { topChrome }
+        .safeAreaInset(edge: .bottom, spacing: 0) { bottomChrome }
         .alert("Success!", isPresented: $vm.showSuccessAlert) {
             Button(L("OK")) {}
         } message: {
@@ -2095,6 +2229,54 @@ struct ContentView: View {
         }
     }
     
+    // MARK: - Floating Chrome (Liquid Glass)
+    
+    // Top chrome: header + toolbar + live-scanner banner in one glass bar.
+    private var topChrome: some View {
+        VStack(spacing: 0) {
+            headerView
+                .padding(.leading, 78)
+                .padding(.trailing, 20)
+                .frame(height: 54)
+                .faceLiftChromeSection(.controlBackgroundColor)
+
+            faceLiftDivider()
+
+            Group {
+                if vm.selectedTab == .walletCards {
+                    toolbarView
+                } else {
+                    passcodeToolbarView
+                }
+            }
+            .frame(height: 48)
+            .padding(.horizontal, 20)
+            .faceLiftChromeSection(.windowBackgroundColor)
+
+            if vm.selectedTab == .walletCards && vm.isScanningCards {
+                faceLiftDivider()
+                scanningNoticeBanner
+            }
+        }
+        .faceLiftChrome()
+    }
+    
+    // Bottom chrome: collapsible activity console + status/action bar.
+    private var bottomChrome: some View {
+        VStack(spacing: 0) {
+            if vm.showLogs {
+                activityLogView
+                faceLiftDivider()
+            }
+
+            bottomBarView
+                .padding(.horizontal, 20)
+                .padding(.vertical, 10)
+                .faceLiftChromeSection(.controlBackgroundColor)
+        }
+        .faceLiftChrome()
+    }
+    
     // MARK: - Subviews
     
     private var headerView: some View {
@@ -2112,9 +2294,8 @@ struct ContentView: View {
                         .font(.system(size: 10, weight: .bold, design: .rounded))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(Color.accentColor.opacity(0.15))
+                        .faceLiftTintedCapsule(fallback: Color.accentColor.opacity(0.15))
                         .foregroundColor(.accentColor)
-                        .clipShape(Capsule())
                 }
                 Text(L("Wallet Cards & Passcode Themes"))
                     .font(.caption)
@@ -2171,14 +2352,13 @@ struct ContentView: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
             .frame(height: 32)
-            .background(Color(NSColor.windowBackgroundColor))
-            .cornerRadius(16)
+            .faceLiftPanel(cornerRadius: 16, fallback: Color(NSColor.windowBackgroundColor))
             
             Button(action: { showCredits = true }) {
                 Label(L("Credits"), systemImage: "heart.fill")
                     .foregroundColor(.pink)
             }
-            .buttonStyle(.bordered)
+            .faceLiftSecondaryButton()
             .controlSize(.regular)
         }
         .controlSize(.regular)
@@ -2202,7 +2382,7 @@ struct ContentView: View {
                         .fontWeight(.semibold)
                 }
             }
-            .buttonStyle(.borderedProminent)
+            .faceLiftProminentButton()
             .tint(vm.isScanningCards ? .red : .blue)
             .controlSize(.regular)
             .disabled(vm.device?.connected != true)
@@ -2210,7 +2390,7 @@ struct ContentView: View {
             Button(action: { vm.showAddCardSheet = true }) {
                 Label(L("Add Manually"), systemImage: "plus")
             }
-            .buttonStyle(.bordered)
+            .faceLiftSecondaryButton()
             .controlSize(.regular)
             
             if !vm.cards.isEmpty {
@@ -2219,7 +2399,7 @@ struct ContentView: View {
                 }) {
                     Label(L("Read Selected from iPhone"), systemImage: "iphone.and.arrow.forward")
                 }
-                .buttonStyle(.bordered)
+                .faceLiftSecondaryButton()
                 .controlSize(.regular)
                 .disabled(vm.device?.connected != true || vm.isPullingSkins || vm.isFlashing || !vm.cards.contains(where: \.isSelected))
                 .help(L("Read artwork for the selected cards only"))
@@ -2227,7 +2407,7 @@ struct ContentView: View {
                 Button(action: openBulkImagePicker) {
                     Label(L("Set Skin for All..."), systemImage: "photo.on.rectangle.angled")
                 }
-                .buttonStyle(.bordered)
+                .faceLiftSecondaryButton()
                 .controlSize(.regular)
                 .help(L("Assign one skin to all selected cards"))
             }
@@ -2286,12 +2466,12 @@ struct ContentView: View {
             Button(L("Done")) {
                 vm.stopCardScanning()
             }
-            .buttonStyle(.bordered)
+            .faceLiftSecondaryButton()
             .controlSize(.small)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 8)
-        .background(Color.blue.opacity(0.1))
+        .faceLiftBannerSurface()
     }
     
     private var emptyStateView: some View {
@@ -2328,22 +2508,21 @@ struct ContentView: View {
             .foregroundColor(.secondary)
             .frame(maxWidth: 460)
             .padding(20)
-            .background(Color(NSColor.controlBackgroundColor))
-            .cornerRadius(12)
+            .faceLiftPanel(cornerRadius: 12, fallback: Color(NSColor.controlBackgroundColor))
             
             HStack(spacing: 12) {
                 Button(action: { vm.startCardScanning() }) {
                     Label(L("Start Scanning"), systemImage: "wave.3.forward.circle.fill")
                         .fontWeight(.semibold)
                 }
-                .buttonStyle(.borderedProminent)
+                .faceLiftProminentButton()
                 .controlSize(.regular)
                 .disabled(vm.device?.connected != true)
                 
                 Button(L("Add Hashes Manually")) {
                     vm.showAddCardSheet = true
                 }
-                .buttonStyle(.bordered)
+                .faceLiftSecondaryButton()
                 .controlSize(.regular)
             }
         }
@@ -2368,21 +2547,21 @@ struct ContentView: View {
                 Button(action: { openPasscodeThemePicker() }) {
                     Label(L("Choose .passthm File..."), systemImage: "folder.badge.plus")
                 }
-                .buttonStyle(.borderedProminent)
+                .faceLiftProminentButton()
                 .tint(.purple)
                 .controlSize(.regular)
             } else {
                 Button(action: { openPosterPicker() }) {
                     Label(vm.creatorPosterImage == nil ? L("Choose Poster...") : L("Change Poster..."), systemImage: "photo")
                 }
-                .buttonStyle(.borderedProminent)
+                .faceLiftProminentButton()
                 .tint(.purple)
                 .controlSize(.regular)
                 
                 Button(action: { openSavePasscodeThemePanel() }) {
                     Label(L("Export .passthm..."), systemImage: "square.and.arrow.up")
                 }
-                .buttonStyle(.bordered)
+                .faceLiftSecondaryButton()
                 .controlSize(.regular)
                 .disabled(vm.effectiveCreatorKeys.isEmpty)
             }
@@ -2532,27 +2711,26 @@ struct ContentView: View {
                         Button(action: { vm.editLoadedThemeInCreator() }) {
                             Label(L("Edit in Creator"), systemImage: "pencil.and.outline")
                         }
-                        .buttonStyle(.borderedProminent)
+                        .faceLiftProminentButton()
                         .tint(.purple)
                         .controlSize(.regular)
                         
                         Button(L("Change...")) {
                             openPasscodeThemePicker()
                         }
-                        .buttonStyle(.bordered)
+                        .faceLiftSecondaryButton()
                         .controlSize(.regular)
                         
                         Button(L("Clear")) {
                             vm.loadedPasscodeTheme = nil
                         }
-                        .buttonStyle(.bordered)
+                        .faceLiftSecondaryButton()
                         .controlSize(.regular)
                     }
                 }
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(12)
+                .faceLiftPanel(cornerRadius: 12, fallback: Color(NSColor.controlBackgroundColor))
             } else {
                 VStack(spacing: 10) {
                     Image(systemName: "square.and.arrow.down.fill")
@@ -2572,7 +2750,7 @@ struct ContentView: View {
                     Button(L("Choose File...")) {
                         openPasscodeThemePicker()
                     }
-                    .buttonStyle(.borderedProminent)
+                    .faceLiftProminentButton()
                     .tint(.purple)
                     .controlSize(.regular)
                 }
@@ -2581,7 +2759,7 @@ struct ContentView: View {
                 .background(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .stroke(isTargetedTheme ? Color.purple : Color.purple.opacity(0.35), style: StrokeStyle(lineWidth: 1.5, dash: [6]))
-                        .background(Color(NSColor.controlBackgroundColor).opacity(0.4).cornerRadius(12))
+                        .background(faceLiftDropZoneFill(cornerRadius: 12))
                 )
                 .onDrop(of: [UTType.fileURL, UTType.data], isTargeted: $isTargetedTheme) { providers in
                     if let provider = providers.first {
@@ -2603,14 +2781,7 @@ struct ContentView: View {
             }
         }
         .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color(NSColor.controlBackgroundColor).opacity(0.5))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color(NSColor.separatorColor).opacity(0.4), lineWidth: 1)
-        )
+        .faceLiftPanel(cornerRadius: 14, fallback: Color(NSColor.controlBackgroundColor).opacity(0.5))
     }
     
     private var applyThemeDialerCanvas: some View {
@@ -2622,9 +2793,7 @@ struct ContentView: View {
                 let centerY = cellY + KeypadLayout.rowHeight / 2.0
                 
                 ZStack {
-                    Circle()
-                        .fill(Color.white.opacity(0.18))
-                        .frame(width: KeypadLayout.buttonDiameter, height: KeypadLayout.buttonDiameter)
+                    KeypadKeySurface()
                     
                     if let img = vm.loadedPasscodeTheme?.keysPreview[btn.digit] {
                         Image(nsImage: img)
@@ -2655,6 +2824,7 @@ struct ContentView: View {
             }
         }
         .frame(width: KeypadLayout.gridWidth, height: KeypadLayout.gridHeight)
+        .faceLiftGlassGroup()
     }
     
     // MARK: - Theme Creator Mode
@@ -2737,21 +2907,20 @@ struct ContentView: View {
                                     Button(L("Change...")) {
                                         openPosterPicker()
                                     }
-                                    .buttonStyle(.bordered)
+                                    .faceLiftSecondaryButton()
                                     .controlSize(.small)
                                     
                                     Button(L("Remove")) {
                                         vm.clearCreator()
                                     }
-                                    .buttonStyle(.bordered)
+                                    .faceLiftSecondaryButton()
                                     .controlSize(.small)
                                 }
                             }
                         }
                         .padding(10)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color(NSColor.controlBackgroundColor))
-                        .cornerRadius(10)
+                        .faceLiftPanel(cornerRadius: 10, fallback: Color(NSColor.controlBackgroundColor))
                     } else {
                         VStack(spacing: 8) {
                             Image(systemName: "photo.badge.plus")
@@ -2765,7 +2934,7 @@ struct ContentView: View {
                             Button(L("Choose Image...")) {
                                 openPosterPicker()
                             }
-                            .buttonStyle(.borderedProminent)
+                            .faceLiftProminentButton()
                             .tint(.purple)
                             .controlSize(.regular)
                         }
@@ -2774,7 +2943,7 @@ struct ContentView: View {
                         .background(
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
                                 .stroke(isTargetedPoster ? Color.purple : Color.purple.opacity(0.3), style: StrokeStyle(lineWidth: 1.5, dash: [6]))
-                                .background(Color(NSColor.controlBackgroundColor).opacity(0.4).cornerRadius(10))
+                                .background(faceLiftDropZoneFill(cornerRadius: 10))
                         )
                         .onDrop(of: [UTType.fileURL, UTType.image], isTargeted: $isTargetedPoster) { providers in
                             handlePosterDrop(providers: providers)
@@ -2942,20 +3111,19 @@ struct ContentView: View {
                                 Button(L("Change Image...")) {
                                     openIndividualKeyPicker(for: selDigit)
                                 }
-                                .buttonStyle(.bordered)
+                                .faceLiftSecondaryButton()
                                 .controlSize(.small)
                                 
                                 Button(L("Remove")) {
                                     vm.clearIndividualKey(digit: selDigit)
                                 }
-                                .buttonStyle(.bordered)
+                                .faceLiftSecondaryButton()
                                 .controlSize(.small)
                             }
                             .padding(.top, 2)
                         }
                         .padding(10)
-                        .background(Color(NSColor.controlBackgroundColor))
-                        .cornerRadius(10)
+                        .faceLiftPanel(cornerRadius: 10, fallback: Color(NSColor.controlBackgroundColor))
                         .overlay(
                             RoundedRectangle(cornerRadius: 10)
                                 .stroke(Color.purple.opacity(0.35), lineWidth: 1)
@@ -2982,14 +3150,14 @@ struct ContentView: View {
                             Button(L("Fill from Poster")) {
                                 vm.adoptPosterSlicesToIndividualKeys()
                             }
-                            .buttonStyle(.bordered)
+                            .faceLiftSecondaryButton()
                             .controlSize(.regular)
                         }
                         
                         Button(L("Clear All Keys")) {
                             vm.clearAllIndividualKeys()
                         }
-                        .buttonStyle(.bordered)
+                        .faceLiftSecondaryButton()
                         .controlSize(.regular)
                         .disabled(vm.creatorCustomKeys.isEmpty)
                     }
@@ -2997,14 +3165,7 @@ struct ContentView: View {
             }
         }
         .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color(NSColor.controlBackgroundColor).opacity(0.5))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color(NSColor.separatorColor).opacity(0.4), lineWidth: 1)
-        )
+        .faceLiftPanel(cornerRadius: 14, fallback: Color(NSColor.controlBackgroundColor).opacity(0.5))
     }
     
     private func scaledPosterDimensions(for poster: NSImage) -> (width: CGFloat, height: CGFloat) {
@@ -3046,6 +3207,7 @@ struct ContentView: View {
             }
         }
         .frame(width: KeypadLayout.gridWidth, height: KeypadLayout.gridHeight)
+        .faceLiftGlassGroup()
         .clipped()
         .contentShape(Rectangle())
         .gesture(
@@ -3076,9 +3238,7 @@ struct ContentView: View {
             if vm.creatorSubMode == .posterSlice {
                 if vm.creatorMaskToCircles {
                     // Circular Cutouts mode: display sliced circular preview
-                    Circle()
-                        .fill(Color.white.opacity(0.18))
-                        .frame(width: KeypadLayout.buttonDiameter, height: KeypadLayout.buttonDiameter)
+                    KeypadKeySurface()
                     
                     if let img = slicedImage {
                         Image(nsImage: img)
@@ -3093,9 +3253,7 @@ struct ContentView: View {
                         .frame(width: KeypadLayout.buttonDiameter, height: KeypadLayout.buttonDiameter)
                 } else {
                     // Seamless Poster mode: frosted translucent circle indicator
-                    Circle()
-                        .fill(Color.white.opacity(0.18))
-                        .frame(width: KeypadLayout.buttonDiameter, height: KeypadLayout.buttonDiameter)
+                    KeypadKeySurface()
                     
                     Circle()
                         .stroke(Color.white.opacity(0.3), lineWidth: 1)
@@ -3104,9 +3262,7 @@ struct ContentView: View {
             } else {
                 // Individual Keys mode
                 let isSelected = (vm.selectedKeyDigit == btn.digit)
-                Circle()
-                    .fill(Color.white.opacity(0.18))
-                    .frame(width: KeypadLayout.buttonDiameter, height: KeypadLayout.buttonDiameter)
+                KeypadKeySurface()
                 
                 if let img = customIndividualImage {
                     Image(nsImage: img)
@@ -3336,7 +3492,7 @@ struct ContentView: View {
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color(NSColor.controlBackgroundColor).opacity(0.6)))
+        .faceLiftPanel(cornerRadius: 10, fallback: Color(NSColor.controlBackgroundColor).opacity(0.6))
         .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.purple.opacity(0.3), lineWidth: 1))
     }
     
@@ -3379,7 +3535,7 @@ struct ContentView: View {
                 }
             }
         }
-        .background(Color(NSColor.textBackgroundColor))
+        .faceLiftLogBackground()
     }
     
     private var bottomBarView: some View {
@@ -3451,7 +3607,7 @@ struct ContentView: View {
                     }
                     .font(.caption)
                 }
-                .buttonStyle(.bordered)
+                .faceLiftSecondaryButton()
                 .controlSize(.regular)
                 
                 // Apply / Flash Button
@@ -3472,7 +3628,7 @@ struct ContentView: View {
                             }
                             .padding(.horizontal, 8)
                         }
-                        .buttonStyle(.borderedProminent)
+                        .faceLiftProminentButton()
                         .tint(.purple)
                         .controlSize(.regular)
                         .disabled(vm.effectiveCreatorKeys.isEmpty || vm.isFlashing || vm.isPullingSkins || vm.device?.connected != true)
@@ -3492,7 +3648,7 @@ struct ContentView: View {
                             }
                             .padding(.horizontal, 8)
                         }
-                        .buttonStyle(.borderedProminent)
+                        .faceLiftProminentButton()
                         .tint(.purple)
                         .controlSize(.regular)
                         .disabled(vm.loadedPasscodeTheme == nil || vm.isFlashing || vm.isPullingSkins || vm.device?.connected != true)
@@ -3513,7 +3669,7 @@ struct ContentView: View {
                         }
                         .padding(.horizontal, 8)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .faceLiftProminentButton()
                     .tint(.green)
                     .controlSize(.regular)
                     .disabled(readyToFlashCount == 0 || vm.isFlashing || vm.isPullingSkins || vm.device?.connected != true)
@@ -3609,7 +3765,7 @@ struct ContentView: View {
             Button(L("Close")) {
                 showCredits = false
             }
-            .buttonStyle(.borderedProminent)
+            .faceLiftProminentButton()
             .controlSize(.regular)
         }
         .padding(24)
@@ -3635,7 +3791,7 @@ struct ContentView: View {
                     vm.showAddCardSheet = false
                     vm.manualHashInput = ""
                 }
-                .buttonStyle(.bordered)
+                .faceLiftSecondaryButton()
                 .controlSize(.regular)
                 
                 Spacer()
@@ -3645,7 +3801,7 @@ struct ContentView: View {
                     vm.showAddCardSheet = false
                     vm.manualHashInput = ""
                 }
-                .buttonStyle(.borderedProminent)
+                .faceLiftProminentButton()
                 .controlSize(.regular)
                 .disabled(vm.manualHashInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
