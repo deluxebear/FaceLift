@@ -338,3 +338,7 @@
 "Show/Hide Inspector" = "显示/隐藏检查器";
 "Skins Flashed" = "卡面已写入";
 "iOS Version" = "iOS 版本";
+"Hide Inspector" = "隐藏检查器";
+"Show Inspector" = "显示检查器";
+"Hide Activity Log" = "隐藏活动日志";
+"Target TelephonyUI version" = "目标 TelephonyUI 版本";

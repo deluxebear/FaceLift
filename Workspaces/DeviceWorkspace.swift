@@ -25,7 +25,7 @@ extension ContentView {
                 .padding(.vertical, 4)
                 if connected {
                     LabeledContent(L("Model"), value: device?.product ?? "iPhone")
-                    LabeledContent(L("iOS Version"), value: device?.version ?? "")
+                    LabeledContent(L("iOS Version"), value: device?.version ?? "—")
                 }
             }
             if connected && device?.isWiFi == true {

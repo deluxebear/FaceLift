@@ -29,9 +29,11 @@ extension ContentView {
                       systemImage: vm.isScanningCards ? "stop.circle" : "wave.3.right")
             }
             .disabled(!vm.canScanCards)
+            .help(vm.isScanningCards ? L("Stop Scanning") : L("Scan Cards"))
             Button { perform(.addCardsManually) } label: {
                 Label(L("Add Manually"), systemImage: "plus")
             }
+            .help(L("Add Manually"))
             Button { perform(.readSelected) } label: {
                 Label(L("Read Selected from iPhone"), systemImage: "iphone.and.arrow.forward")
             }
@@ -46,17 +48,20 @@ extension ContentView {
             Button { perform(.importTheme) } label: {
                 Label(L("Choose .passthm File..."), systemImage: "folder.badge.plus")
             }
+            .help(L("Choose .passthm File..."))
             targetVersionPicker
         case .creator:
             Button { perform(.choosePoster) } label: {
                 Label(vm.creatorPosterImage == nil ? L("Choose Poster...") : L("Change Poster..."), systemImage: "photo")
             }
+            .help(vm.creatorPosterImage == nil ? L("Choose Poster...") : L("Change Poster..."))
             targetVersionPicker
         case .device:
             Button { perform(.refreshDevice) } label: {
                 Label(L("Refresh device connection"), systemImage: "arrow.clockwise")
             }
             .disabled(vm.isCheckingDevice)
+            .help(L("Refresh device connection"))
         }
     }
 
@@ -68,6 +73,7 @@ extension ContentView {
                 Label(vm.readyToFlashCount > 0 ? L("Flash Skins (%@ Cards)", "\(vm.readyToFlashCount)") : L("Flash Skins"),
                       systemImage: "sparkles")
             }
+            .labelStyle(.titleAndIcon)
             .faceLiftProminentButton()
             .disabled(!vm.canFlashCards)
         case .passcode:
@@ -75,6 +81,7 @@ extension ContentView {
             Button { perform(.flash) } label: {
                 Label(L("Flash Passcode Theme"), systemImage: "lock.shield.fill")
             }
+            .labelStyle(.titleAndIcon)
             .faceLiftProminentButton()
             .disabled(!vm.canFlashPasscode)
         case .creator:
@@ -83,6 +90,7 @@ extension ContentView {
             Button { perform(.flash) } label: {
                 Label(L("Flash to iPhone"), systemImage: "lock.shield.fill")
             }
+            .labelStyle(.titleAndIcon)
             .faceLiftProminentButton()
             .disabled(!vm.canFlashCreator)
         case .device:
@@ -100,7 +108,7 @@ extension ContentView {
         .pickerStyle(.menu)
         .fixedSize()
         .disabled(vm.device?.isUSBConnectedIPhone == true && vm.device?.passcodeCacheVersion != nil)
-        .help(L("Target:"))
+        .help(L("Target TelephonyUI version"))
     }
 
     private func passcodeMoreMenu(clear: WindowAction, clearTitle: String, clearDisabled: Bool) -> some View {

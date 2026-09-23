@@ -338,3 +338,7 @@
 "Show/Hide Inspector" = "Show/Hide Inspector";
 "Skins Flashed" = "Skins Flashed";
 "iOS Version" = "iOS Version";
+"Hide Inspector" = "Hide Inspector";
+"Show Inspector" = "Show Inspector";
+"Hide Activity Log" = "Hide Activity Log";
+"Target TelephonyUI version" = "Target TelephonyUI version";

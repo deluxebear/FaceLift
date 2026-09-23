@@ -79,7 +79,8 @@ struct ContentView: View {
         .onChange(of: window.pendingAction) { _, action in
             guard let action else { return }
             window.pendingAction = nil
-            perform(action)
+            // Defer so a page switch renders before any modal open panel appears.
+            DispatchQueue.main.async { perform(action) }
         }
         .onChange(of: vm.selectedTab) { _, newTab in
             if newTab == .passcodeThemes && vm.isScanningCards {
@@ -115,15 +116,19 @@ struct ContentView: View {
         }
     }
 
+    private var lastFlashWasPasscode: Bool {
+        window.lastFlashSection == .passcode || window.lastFlashSection == .creator
+    }
+
     private var successTitle: String {
         if vm.didClearPasscodeCache { return L("Passcode Cache Cleared") }
-        return vm.selectedTab == .passcodeThemes ? L("Passcode Theme Written") : L("Skins Flashed")
+        return lastFlashWasPasscode ? L("Passcode Theme Written") : L("Skins Flashed")
     }
 
     private var successMessage: String {
         if vm.didClearPasscodeCache {
             return L("Passcode cache cleared. Restart your iPhone to regenerate the default keypad.")
-        } else if vm.selectedTab == .passcodeThemes {
+        } else if lastFlashWasPasscode {
             return L("Passcode theme successfully applied!\n\nLock your iPhone to see your new keypad. On iOS 27, restarting may restore the default keypad.")
         }
         return L("Skins successfully applied to all selected cards!\n\nPlease force-close the Wallet app on your iPhone (or reboot) to see your new designs.")
@@ -158,6 +163,7 @@ struct ContentView: View {
         case .setSkinForSelected:
             openBulkImagePicker()
         case .flash:
+            window.lastFlashSection = window.section
             switch window.section {
             case .cards: vm.applySkin()
             case .passcode: vm.flashPasscodeTheme()

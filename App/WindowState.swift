@@ -27,6 +27,8 @@ final class WindowState: ObservableObject {
     @Published var showCredits = false
     @Published var showRestorePasscodeConfirmation = false
     @Published var pendingAction: WindowAction?
+    /// Page whose content was last sent to the iPhone; picks the success alert text.
+    @Published var lastFlashSection: WorkspaceSection?
 
     /// Inspector visibility, remembered separately for each page.
     var isInspectorPresented: Bool {
@@ -35,6 +37,9 @@ final class WindowState: ObservableObject {
             if newValue { inspectorHidden.remove(section) } else { inspectorHidden.insert(section) }
         }
     }
+
+    /// True while a sheet or confirmation owned by the window is showing.
+    var isPresentingModal: Bool { showGuide || showCredits || showRestorePasscodeConfirmation }
 
     func send(_ action: WindowAction) { pendingAction = action }
 }

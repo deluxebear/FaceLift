@@ -7,6 +7,16 @@ struct FaceLiftCommands: Commands {
     @FocusedObject private var vm: AppViewModel?
     @FocusedObject private var window: WindowState?
 
+    /// Window- or view-model-owned sheets and alerts; commands that act on
+    /// the window stay disabled while one is up.
+    private var isBlocked: Bool {
+        window == nil
+            || window?.isPresentingModal == true
+            || vm?.showAddCardSheet == true
+            || vm?.showSuccessAlert == true
+            || vm?.errorMessage != nil
+    }
+
     var body: some Commands {
         CommandGroup(replacing: .appInfo) {
             Button(L("About FaceLift")) { window?.showCredits = true }
@@ -16,48 +26,48 @@ struct FaceLiftCommands: Commands {
         CommandGroup(replacing: .newItem) {
             Button(L("Import .passthm...")) { window?.send(.importTheme) }
                 .keyboardShortcut("o")
-                .disabled(window == nil)
+                .disabled(isBlocked)
             Button(L("Choose Poster...")) { window?.send(.choosePoster) }
                 .keyboardShortcut("o", modifiers: [.command, .shift])
-                .disabled(window?.section != .creator)
+                .disabled(isBlocked || window?.section != .creator)
             Button(L("Set Skin for Selected Cards...")) { window?.send(.setSkinForSelected) }
-                .disabled(window?.section != .cards || vm?.canSetSkinForSelected != true)
+                .disabled(isBlocked || window?.section != .cards || vm?.canSetSkinForSelected != true)
         }
 
         CommandGroup(before: .sidebar) {
             ForEach(WorkspaceSection.allCases, id: \.self) { item in
                 Button(item.title) { window?.section = item }
                     .keyboardShortcut(item.shortcut)
-                    .disabled(window == nil)
+                    .disabled(isBlocked)
             }
             Divider()
         }
 
         CommandGroup(after: .sidebar) {
-            Button(L("Show/Hide Inspector")) { window?.isInspectorPresented.toggle() }
+            Button(window?.isInspectorPresented == true ? L("Hide Inspector") : L("Show Inspector")) { window?.isInspectorPresented.toggle() }
                 .keyboardShortcut("i", modifiers: [.command, .option])
-                .disabled(window?.section.hasInspector != true)
-            Button(L("Show Activity Log")) { vm?.showLogs.toggle() }
+                .disabled(isBlocked || window?.section.hasInspector != true)
+            Button(vm?.showLogs == true ? L("Hide Activity Log") : L("Show Activity Log")) { vm?.showLogs.toggle() }
                 .keyboardShortcut("l", modifiers: [.command, .shift])
-                .disabled(vm == nil)
+                .disabled(isBlocked || vm == nil)
         }
 
         CommandMenu(L("Device")) {
             Button(L("Refresh device connection")) { window?.send(.refreshDevice) }
                 .keyboardShortcut("r")
-                .disabled(vm == nil || vm?.isCheckingDevice == true)
+                .disabled(isBlocked || vm == nil || vm?.isCheckingDevice == true)
             Button(vm?.isScanningCards == true ? L("Stop Scanning") : L("Scan Cards")) {
                 window?.section = .cards
                 window?.send(.toggleScanning)
             }
             .keyboardShortcut("s", modifiers: [.command, .shift])
-            .disabled(vm?.canScanCards != true)
+            .disabled(isBlocked || vm?.canScanCards != true)
             Divider()
             Button(L("Flash to iPhone")) { window?.send(.flash) }
                 .keyboardShortcut(.return)
-                .disabled(window.map { vm?.canFlash(in: $0.section) == true } != true)
+                .disabled(isBlocked || window.map { vm?.canFlash(in: $0.section) == true } != true)
             Button(L("Restore Default Passcode...")) { window?.send(.restoreDefaultPasscode) }
-                .disabled(vm?.canRestorePasscode != true)
+                .disabled(isBlocked || vm?.canRestorePasscode != true)
         }
 
         CommandGroup(replacing: .help) {
