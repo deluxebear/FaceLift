@@ -12,12 +12,6 @@ extension ContentView {
                 Spacer()
             }
             .padding(.bottom, 13)
-            Picker("", selection: $vm.selectedTab) {
-                Text(L("Wallet Cards")).tag(AppTab.walletCards)
-                Text(L("Lock Screen")).tag(AppTab.passcodeThemes)
-            }
-            .pickerStyle(.segmented)
-            .onChange(of: vm.selectedTab) { _, tab in if tab == .walletCards { navigate(.cards) } }
             Text(vm.device?.connected == true ? (vm.device?.name ?? "iPhone") : L("iPhone Preview"))
                 .font(.caption)
                 .foregroundStyle(FaceLiftPalette.muted)
@@ -48,104 +42,21 @@ extension ContentView {
                 .disabled(vm.effectiveCreatorKeys.isEmpty)
             }
         }
-        .padding(17)
-        .faceLiftWorkspacePanel(cornerRadius: 20)
-        .overlay(RoundedRectangle(cornerRadius: 20).stroke(FaceLiftPalette.line))
-        .shadow(color: FaceLiftPalette.blue.opacity(0.06), radius: 18, y: 6)
+        .padding(16)
     }
 }
 
 extension ContentView {
     var passcodeWorkspace: some View {
-        VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 15) {
-                HStack(spacing: 12) {
-                    featureCard(title: L("Apply Theme"), subtitle: L("Import a .passthm package"), symbol: "lock.shield", selected: section == .passcode) { navigate(.passcode) }
-                    featureCard(title: L("Theme Creator"), subtitle: L("Poster slicing and individual keys"), symbol: "square.grid.3x3", selected: section == .creator) { navigate(.creator) }
-                }
-                passcodeToolbarView
-            }
-            .padding(.horizontal, 25)
-            .padding(.top, 8)
-            .padding(.bottom, 15)
-            .overlay(alignment: .bottom) { FaceLiftPalette.line.opacity(0.75).frame(height: 1) }
-            ScrollView {
-                passcodeThemeWorkspaceView
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 25)
-                    .padding(.top, 15)
-                    .padding(.bottom, 24)
-            }
-        }
-        .onChange(of: vm.passcodeTabMode) { _, mode in
-            section = mode == .applyTheme ? .passcode : .creator
+        ScrollView {
+            passcodeThemeWorkspaceView
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(20)
         }
     }
 }
 
 extension ContentView {
-    var passcodeToolbarView: some View {
-        HStack(spacing: 12) {
-            if vm.passcodeTabMode == .applyTheme {
-                Button(action: { openPasscodeThemePicker() }) {
-                    Label(L("Choose .passthm File..."), systemImage: "folder.badge.plus")
-                }
-                .faceLiftProminentButton()
-                .tint(FaceLiftPalette.blue)
-                .controlSize(.regular)
-            } else {
-                Button(action: { openPosterPicker() }) {
-                    Label(vm.creatorPosterImage == nil ? L("Choose Poster...") : L("Change Poster..."), systemImage: "photo")
-                }
-                .faceLiftProminentButton()
-                .tint(FaceLiftPalette.blue)
-                .controlSize(.regular)
-                
-            }
-            
-            Spacer()
-            
-            // Target Version Picker
-            HStack(spacing: 6) {
-                Text(L("Target:"))
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Picker("", selection: $vm.targetTelephonyVersion) {
-                    Text(L("TelephonyUI-10 (iOS 18+)")).tag("TelephonyUI-10")
-                    Text(L("TelephonyUI-9 (iOS 16–17)")).tag("TelephonyUI-9")
-                    Text(L("TelephonyUI-8 (iOS 14–15)")).tag("TelephonyUI-8")
-                    Text(L("Universal (All 8, 9, 10)")).tag("all")
-                }
-                .pickerStyle(.menu)
-                .controlSize(.regular)
-                .frame(width: 205)
-                .disabled(vm.device?.isUSBConnectedIPhone == true && vm.device?.passcodeCacheVersion != nil)
-            }
-            
-            Text("·")
-                .foregroundColor(.secondary)
-            
-            if vm.passcodeTabMode == .applyTheme {
-                Button(L("Clear Theme")) {
-                    vm.loadedPasscodeTheme = nil
-                }
-                .buttonStyle(.link)
-                .font(.caption)
-                .foregroundColor(.red)
-                .disabled(vm.loadedPasscodeTheme == nil)
-            } else {
-                Button(L("Clear All")) {
-                    vm.clearCreator()
-                }
-                .buttonStyle(.link)
-                .font(.caption)
-                .foregroundColor(.red)
-                .disabled(vm.effectiveCreatorKeys.isEmpty && vm.creatorPosterImage == nil)
-            }
-        }
-        .controlSize(.regular)
-        .frame(height: 48)
-    }
     
     var passcodeThemeWorkspaceView: some View {
         Group {

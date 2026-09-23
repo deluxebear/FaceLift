@@ -2,246 +2,6 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
-struct WalletCardView: View {
-    @ObservedObject private var language = AppLanguage.shared
-    @Binding var card: CardItem
-    let cardIndex: Int
-    let onPickImage: () -> Void
-    let onClearImage: () -> Void
-    let onDelete: () -> Void
-    var onStoreImage: (URL) -> Void = { _ in }
-    
-    @State private var isHovered = false
-    @State private var isTargeted = false
-    @State private var copied = false
-    
-    var body: some View {
-        let _ = language.resolved
-        return VStack(spacing: 10) {
-            // Card Mockup
-            ZStack {
-                if let img = card.customImage {
-                    // Custom Skin Applied
-                    ZStack(alignment: .topTrailing) {
-                        Image(nsImage: img)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: 290, height: 182)
-                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        
-                        // Subtle Gloss
-                        LinearGradient(
-                            colors: [.white.opacity(0.18), .clear, .black.opacity(0.12)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                        
-                        // Top Right Clear Button
-                        Button(action: onClearImage) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 20))
-                                .foregroundColor(.white.opacity(0.9))
-                                .background(Circle().fill(Color.black.opacity(0.55)))
-                        }
-                        .buttonStyle(.plain)
-                        .padding(10)
-                        .help(L("Remove skin"))
-                        
-                        // Hover overlay: Change Skin
-                        if isHovered {
-                            VStack {
-                                Spacer()
-                                HStack {
-                                    Spacer()
-                                    Label(L("Change Skin"), systemImage: "photo.badge.arrow.forward")
-                                        .font(.caption)
-                                        .fontWeight(.semibold)
-                                        .padding(.horizontal, 12)
-                                        .padding(.vertical, 6)
-                                        .faceLiftCapsule(interactive: true, fallbackMaterial: .ultraThinMaterial)
-                                        .shadow(radius: 4)
-                                    Spacer()
-                                }
-                                .padding(.bottom, 12)
-                            }
-                        }
-                    }
-                } else {
-                    // Empty / Placeholder Card Mockup
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(
-                                LinearGradient(
-                                    colors: [
-                                        Color(NSColor.controlBackgroundColor),
-                                        Color(NSColor.windowBackgroundColor).opacity(0.8)
-                                    ],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                        
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(
-                                isTargeted ? Color.accentColor : (isHovered ? Color.secondary.opacity(0.4) : Color.secondary.opacity(0.2)),
-                                style: StrokeStyle(lineWidth: isTargeted ? 2 : 1, dash: card.customImage == nil ? [6, 4] : [])
-                            )
-                        
-                        // Card Chip & Contactless indicator
-                        VStack(alignment: .leading) {
-                            HStack {
-                                Image(systemName: "wave.3.right")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.secondary.opacity(0.5))
-                                Spacer()
-                                Image(systemName: "creditcard")
-                                    .font(.system(size: 16))
-                                    .foregroundColor(.secondary.opacity(0.4))
-                            }
-                            .padding(14)
-                            Spacer()
-                        }
-                        
-                        // Center Action
-                        VStack(spacing: 8) {
-                            Image(systemName: isHovered || isTargeted ? "photo.badge.plus" : "plus.circle.fill")
-                                .font(.system(size: 32))
-                                .foregroundColor(isTargeted ? .accentColor : (isHovered ? .accentColor : .secondary.opacity(0.7)))
-                                .scaleEffect(isHovered ? 1.08 : 1.0)
-                                .animation(.spring(response: 0.3), value: isHovered)
-                            
-                            Text(isTargeted ? L("Drop image here") : L("Assign Card Skin"))
-                                .font(.subheadline)
-                                .fontWeight(.medium)
-                                .foregroundColor(.primary)
-                            
-                            Text(L("Click to browse or drag image"))
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-                    .frame(width: 290, height: 182)
-                }
-            }
-            .frame(width: 290, height: 182)
-            .shadow(color: .black.opacity(isHovered ? 0.22 : 0.12), radius: isHovered ? 10 : 5, y: isHovered ? 5 : 2)
-            .onHover { h in isHovered = h }
-            .onTapGesture { onPickImage() }
-            .onDrop(of: [UTType.fileURL, UTType.image], isTargeted: $isTargeted) { providers in
-                guard let provider = providers.first else { return false }
-                if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
-                    provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
-                        var fileURL: URL?
-                        if let url = item as? URL {
-                            fileURL = url
-                        } else if let data = item as? Data, let urlStr = String(data: data, encoding: .utf8), let url = URL(string: urlStr) {
-                            fileURL = url
-                        }
-                        if let url = fileURL, let img = NSImage(contentsOf: url) {
-                            Task { @MainActor in
-                                card.customImageURL = url
-                                card.customImage = img
-                                card.isSelected = true
-                                onStoreImage(url)
-                            }
-                        }
-                    }
-                    return true
-                } else if provider.hasItemConformingToTypeIdentifier(UTType.image.identifier) {
-                    provider.loadItem(forTypeIdentifier: UTType.image.identifier, options: nil) { item, _ in
-                        if let url = item as? URL, let img = NSImage(contentsOf: url) {
-                            Task { @MainActor in
-                                card.customImageURL = url
-                                card.customImage = img
-                                card.isSelected = true
-                                onStoreImage(url)
-                            }
-                        } else if let img = item as? NSImage {
-                            let tempURL = FileManager.default.temporaryDirectory
-                                .appendingPathComponent("facelift_drop_\(UUID().uuidString).png")
-                            if let tiff = img.tiffRepresentation,
-                               let rep = NSBitmapImageRep(data: tiff),
-                               let pngData = rep.representation(using: .png, properties: [:]) {
-                                try? pngData.write(to: tempURL)
-                            }
-                            Task { @MainActor in
-                                card.customImageURL = tempURL
-                                card.customImage = img
-                                card.isSelected = true
-                                onStoreImage(tempURL)
-                            }
-                        }
-                    }
-                    return true
-                }
-                return false
-            }
-            
-            // Bottom Info & Controls
-            HStack(spacing: 8) {
-                Toggle("", isOn: $card.isSelected)
-                    .labelsHidden()
-                    .help(L("Include in flash"))
-                
-                Text(L("Card #%@", String(cardIndex + 1)))
-                    .font(.system(size: 12, weight: .semibold))
-                
-                // Monospace Hash Pill with Copy
-                HStack(spacing: 4) {
-                    Text(card.id.prefix(8) + "…" + card.id.suffix(6))
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundColor(.secondary)
-                    
-                    Button(action: {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(card.id, forType: .string)
-                        copied = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
-                    }) {
-                        Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                            .font(.system(size: 9))
-                            .foregroundColor(copied ? .green : .secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .help(copied ? L("Copied!") : L("Copy full hash"))
-                }
-                .padding(.horizontal, 6)
-                .padding(.vertical, 3)
-                .faceLiftPanel(cornerRadius: 6, fallback: Color(NSColor.controlBackgroundColor))
-                
-                Spacer()
-                
-                // Status badge
-                if card.customImage != nil {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundColor(.green)
-                        .font(.system(size: 12))
-                        .help(L("Skin assigned and ready"))
-                }
-                
-                // Delete button
-                Button(action: onDelete) {
-                    Image(systemName: "trash")
-                        .font(.system(size: 11))
-                        .foregroundColor(.secondary.opacity(0.7))
-                }
-                .buttonStyle(.plain)
-                .help(L("Remove from list"))
-            }
-            .padding(.horizontal, 4)
-        }
-        .padding(10)
-        .faceLiftPanel(cornerRadius: 18, fallback: Color(NSColor.controlBackgroundColor).opacity(0.4))
-        .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(card.isSelected ? Color.accentColor.opacity(0.3) : Color.clear, lineWidth: 1)
-        )
-    }
-}
-
-// MARK: - Main UI View
-
 struct WalletTileView: View {
     @Binding var card: CardItem
     let index: Int
@@ -353,63 +113,34 @@ extension ContentView {
     var walletWorkspace: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 20) {
-                HStack(spacing: 14) {
-                    featureCard(title: L("Wallet Cards"), subtitle: L("Customize Apple Wallet artwork"), symbol: "creditcard.fill", selected: true) { navigate(.cards) }
-                    featureCard(title: L("Lock Screen"), subtitle: L("Apply or create a passcode theme"), symbol: "lock.fill", selected: false) { navigate(.passcode) }
-                }
                 HStack(spacing: 9) {
                     Text(L("My Cards"))
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundStyle(FaceLiftPalette.ink)
+                        .font(.title3.weight(.semibold))
                     Text("\(vm.cards.count)")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(FaceLiftPalette.muted)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
                         .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .background(Color(red: 0.91, green: 0.94, blue: 0.99), in: RoundedRectangle(cornerRadius: 6))
+                        .padding(.vertical, 2)
+                        .background(Color.brand.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
                     Spacer(minLength: 4)
-                    TextField(L("Search cards by hash or number"), text: $cardSearch)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(maxWidth: 260)
-                }
-                HStack(spacing: 8) {
-                    Button { vm.toggleCardScanning() } label: {
-                        Label(vm.isScanningCards ? L("Stop Scanning") : L("Scan Cards"), systemImage: vm.isScanningCards ? "stop.circle" : "wave.3.right")
-                    }
-                    .faceLiftSecondaryButton()
-                    .disabled(vm.device?.connected != true)
-                    Button { openBulkImagePicker() } label: { Label(L("Set Skin for All..."), systemImage: "photo") }
-                        .faceLiftSecondaryButton()
-                        .disabled(!vm.cards.contains(where: \.isSelected))
-                    Button {
-                        vm.queueSkinPulls(ids: vm.cards.filter(\.isSelected).map(\.id), replacingStored: true)
-                    } label: {
-                        Label(L("Read Selected from iPhone"), systemImage: "iphone.and.arrow.forward")
-                    }
-                    .faceLiftProminentButton()
-                    .tint(FaceLiftPalette.blue)
-                    .disabled(vm.device?.connected != true || vm.device?.isWiFi == true || vm.isPullingSkins || vm.isFlashing || !vm.cards.contains(where: \.isSelected))
-                    .help(L("Read artwork for the selected cards only"))
-                    Spacer(minLength: 0)
                     Menu {
                         Button(L("Select All")) { for i in vm.cards.indices { vm.cards[i].isSelected = true } }
-                            .disabled(vm.cards.isEmpty)
                         Button(L("Deselect All")) { for i in vm.cards.indices { vm.cards[i].isSelected = false } }
-                            .disabled(vm.cards.isEmpty)
                         Divider()
                         Button(L("Clear All"), role: .destructive) { vm.clearAllCards() }
-                            .disabled(vm.cards.isEmpty)
-                        Divider()
-                        Button { vm.showAddCardSheet = true } label: { Label(L("Add Manually"), systemImage: "plus") }
-                    } label: { Image(systemName: "ellipsis.circle").frame(width: 22) }
+                    } label: {
+                        Label(L("Selection"), systemImage: "checklist")
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                    .disabled(vm.cards.isEmpty)
                 }
-                .controlSize(.regular)
                 if vm.isScanningCards { scanningNoticeBanner.clipShape(RoundedRectangle(cornerRadius: 12)) }
             }
-            .padding(.horizontal, 25)
-            .padding(.top, 8)
-            .padding(.bottom, 15)
-            .overlay(alignment: .bottom) { FaceLiftPalette.line.opacity(0.75).frame(height: 1) }
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
+            .padding(.bottom, 12)
+            Divider()
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
@@ -457,6 +188,7 @@ extension ContentView {
                 .padding(.bottom, 24)
             }
         }
+        .searchable(text: $cardSearch, placement: .toolbar, prompt: Text(L("Search cards by hash or number")))
     }
 
     var filteredCardIndices: [Int] {
@@ -468,28 +200,6 @@ extension ContentView {
         }
     }
 
-    func featureCard(title: String, subtitle: String, symbol: String, selected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            HStack(spacing: 13) {
-                Image(systemName: symbol)
-                    .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(selected ? Color.white : FaceLiftPalette.blue)
-                    .frame(width: 52, height: 52)
-                    .background(selected ? FaceLiftPalette.blue : Color(red: 0.89, green: 0.93, blue: 1), in: RoundedRectangle(cornerRadius: 13))
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(title).font(.system(size: 16, weight: .bold)).foregroundStyle(FaceLiftPalette.ink)
-                    Text(subtitle).font(.system(size: 11)).foregroundStyle(FaceLiftPalette.muted).lineLimit(2)
-                }
-                Spacer(minLength: 0)
-                Image(systemName: "chevron.right").foregroundStyle(FaceLiftPalette.muted)
-            }
-            .padding(16)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .faceLiftWorkspacePanel(cornerRadius: 14, tint: selected ? FaceLiftPalette.blue.opacity(0.12) : nil)
-            .overlay(RoundedRectangle(cornerRadius: 14).stroke(selected ? FaceLiftPalette.blue.opacity(0.85) : FaceLiftPalette.line))
-        }
-        .buttonStyle(.plain)
-    }
 
     var walletPreview: some View {
         VStack(spacing: 0) {
@@ -500,13 +210,6 @@ extension ContentView {
                 Spacer()
             }
             .padding(.bottom, 13)
-            Picker("", selection: $vm.selectedTab) {
-                Text(L("Wallet Cards")).tag(AppTab.walletCards)
-                Text(L("Lock Screen")).tag(AppTab.passcodeThemes)
-            }
-            .pickerStyle(.segmented)
-            .onChange(of: vm.selectedTab) { _, tab in if tab == .passcodeThemes { navigate(.passcode) } }
-            .padding(.bottom, 18)
             walletPhone
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             HStack(spacing: 8) {
@@ -522,10 +225,7 @@ extension ContentView {
             }
             .frame(height: 30)
         }
-        .padding(17)
-        .faceLiftWorkspacePanel(cornerRadius: 20)
-        .overlay(RoundedRectangle(cornerRadius: 20).stroke(FaceLiftPalette.line))
-        .shadow(color: FaceLiftPalette.blue.opacity(0.06), radius: 18, y: 6)
+        .padding(16)
     }
 }
 

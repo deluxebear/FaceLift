@@ -315,3 +315,26 @@
 "Choose artwork, select cards, then write the skins." = "Choose artwork, select cards, then write the skins.";
 "Import a passcode theme or create one from images." = "Import a passcode theme or create one from images.";
 "Review the preview and write the theme to iPhone." = "Review the preview and write the theme to iPhone.";
+/* Native window shell */
+"About FaceLift" = "About FaceLift";
+"Cards" = "Cards";
+"Change the artwork of your Wallet cards." = "Change the artwork of your Wallet cards.";
+"Copy" = "Copy";
+"Customize" = "Customize";
+"Device" = "Device";
+"General" = "General";
+"Import .passthm..." = "Import .passthm...";
+"Inspector" = "Inspector";
+"Lock Screen Themes" = "Lock Screen Themes";
+"Model" = "Model";
+"More" = "More";
+"No activity yet." = "No activity yet.";
+"Passcode Cache Cleared" = "Passcode Cache Cleared";
+"Passcode Theme Written" = "Passcode Theme Written";
+"Restore Default Passcode..." = "Restore Default Passcode...";
+"Selection" = "Selection";
+"Set Skin for Selected Cards..." = "Set Skin for Selected Cards...";
+"Show Activity Log" = "Show Activity Log";
+"Show/Hide Inspector" = "Show/Hide Inspector";
+"Skins Flashed" = "Skins Flashed";
+"iOS Version" = "iOS Version";

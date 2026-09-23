@@ -209,3 +209,20 @@ enum FaceLiftPalette {
     static let line = Color(red: 0.82, green: 0.87, blue: 0.96)
     static let surface = Color.white.opacity(0.88)
 }
+
+// MARK: - Brand color
+
+extension Color {
+    /// FaceLift brand accent, tuned separately for light and dark appearance.
+    static let brand = Color(nsColor: NSColor(name: "FaceLiftBrand") { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? NSColor(srgbRed: 0x4D / 255.0, green: 0x8D / 255.0, blue: 0xFF / 255.0, alpha: 1)
+            : NSColor(srgbRed: 0x14 / 255.0, green: 0x66 / 255.0, blue: 0xF2 / 255.0, alpha: 1)
+    })
+}
+
+/// Green over USB, orange over Wi-Fi, gray when no iPhone is connected.
+func deviceStatusColor(_ device: DeviceInfo?) -> Color {
+    guard device?.connected == true else { return .gray }
+    return device?.isWiFi == true ? .orange : .green
+}

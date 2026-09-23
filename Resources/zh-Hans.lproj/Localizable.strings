@@ -315,3 +315,26 @@
 "Choose artwork, select cards, then write the skins." = "选择卡面图片和目标卡片，然后写入。";
 "Import a passcode theme or create one from images." = "导入密码主题，或通过图片制作主题。";
 "Review the preview and write the theme to iPhone." = "确认预览效果后，将主题写入 iPhone。";
+/* Native window shell */
+"About FaceLift" = "关于 FaceLift";
+"Cards" = "卡片";
+"Change the artwork of your Wallet cards." = "更换钱包卡片的卡面。";
+"Copy" = "拷贝";
+"Customize" = "自定义";
+"Device" = "设备";
+"General" = "通用";
+"Import .passthm..." = "导入 .passthm...";
+"Inspector" = "检查器";
+"Lock Screen Themes" = "锁屏密码主题";
+"Model" = "型号";
+"More" = "更多";
+"No activity yet." = "暂无活动。";
+"Passcode Cache Cleared" = "密码缓存已清除";
+"Passcode Theme Written" = "密码主题已写入";
+"Restore Default Passcode..." = "恢复默认密码键盘...";
+"Selection" = "选择";
+"Set Skin for Selected Cards..." = "为所选卡片设置卡面...";
+"Show Activity Log" = "显示活动日志";
+"Show/Hide Inspector" = "显示/隐藏检查器";
+"Skins Flashed" = "卡面已写入";
+"iOS Version" = "iOS 版本";

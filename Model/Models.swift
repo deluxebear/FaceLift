@@ -165,16 +165,27 @@ enum PasscodeBoldTarget: String, CaseIterable, Identifiable {
     }
 }
 
-enum WorkspaceSection: String, CaseIterable {
-    case cards, passcode, creator, device, settings
+enum WorkspaceSection: String, CaseIterable, Hashable {
+    case cards, passcode, creator, device
+
+    /// Sidebar "Customize" group, in display order.
+    static let customize: [WorkspaceSection] = [.cards, .passcode, .creator]
 
     @MainActor var title: String {
         switch self {
-        case .cards: return L("Card Management")
-        case .passcode: return L("Lock Screen")
+        case .cards: return L("Cards")
+        case .passcode: return L("Lock Screen Themes")
         case .creator: return L("Theme Creator")
         case .device: return L("Device Connection")
-        case .settings: return L("Settings")
+        }
+    }
+
+    @MainActor var subtitle: String {
+        switch self {
+        case .cards: return L("Change the artwork of your Wallet cards.")
+        case .passcode: return L("Import, preview and apply a .passthm theme.")
+        case .creator: return L("Use a poster or custom images for each key.")
+        case .device: return L("Check your iPhone and connection before writing.")
         }
     }
 
@@ -182,9 +193,20 @@ enum WorkspaceSection: String, CaseIterable {
         switch self {
         case .cards: return "creditcard"
         case .passcode: return "lock.iphone"
-        case .creator: return "square.grid.2x2"
+        case .creator: return "square.grid.3x3"
         case .device: return "iphone"
-        case .settings: return "gearshape"
         }
     }
+
+    /// ⌘1–⌘4 in the View menu.
+    var shortcut: KeyEquivalent {
+        switch self {
+        case .cards: return "1"
+        case .passcode: return "2"
+        case .creator: return "3"
+        case .device: return "4"
+        }
+    }
+
+    var hasInspector: Bool { self != .device }
 }
