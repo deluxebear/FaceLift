@@ -20,7 +20,7 @@ struct FaceLiftCommands: Commands {
     var body: some Commands {
         CommandGroup(replacing: .appInfo) {
             Button(L("About FaceLift")) { window?.showCredits = true }
-                .disabled(window == nil)
+                .disabled(window == nil || window?.isPresentingModal == true || vm?.showAddCardSheet == true)
         }
 
         CommandGroup(replacing: .newItem) {
@@ -73,7 +73,7 @@ struct FaceLiftCommands: Commands {
         CommandGroup(replacing: .help) {
             Button(L("FaceLift Guide")) { window?.showGuide = true }
                 .keyboardShortcut("?", modifiers: .command)
-                .disabled(window == nil)
+                .disabled(window == nil || window?.isPresentingModal == true || vm?.showAddCardSheet == true)
         }
     }
 }

@@ -163,6 +163,8 @@ struct ContentView: View {
         case .setSkinForSelected:
             openBulkImagePicker()
         case .flash:
+            // Menu/toolbar enablement can lag a run-loop turn behind isFlashing.
+            guard vm.canFlash(in: window.section) else { return }
             window.lastFlashSection = window.section
             switch window.section {
             case .cards: vm.applySkin()
