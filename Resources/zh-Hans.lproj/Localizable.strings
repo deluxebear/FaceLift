@@ -72,6 +72,9 @@
 "Interactive iPhone Lock Screen Preview" = "iPhone 锁屏交互预览";
 "Drag dialer to pan · Use slider to zoom" = "拖动键盘平移 · 用滑杆缩放";
 "Poster Artwork" = "海报图片";
+"Use Chinese Numeral Example" = "使用中文大写数字示例";
+"Could not load the Chinese numeral example." = "无法加载中文大写数字示例。";
+"Chinese numeral example loaded · Ready to export or flash" = "已载入中文大写数字示例 · 可以导出或写入手机";
 "Artwork Loaded" = "已载入图片";
 "Remove" = "移除";
 "Drop poster or wallpaper here" = "将海报或壁纸拖到这里";
@@ -149,7 +152,7 @@
 "No card hashes were added. Check the format or remove duplicates." = "没有添加任何卡片哈希。请检查格式或移除重复内容。";
 "Success!" = "成功";
 "OK" = "好";
-"Passcode theme successfully applied!\n\nLock your iPhone (or restart) to see your new passcode keypad." = "密码主题已写入。\n\n锁定 iPhone（或重新启动）即可看到新的密码键盘。";
+"Passcode theme successfully applied!\n\nLock your iPhone to see your new keypad. On iOS 27, restarting may restore the default keypad." = "密码主题已写入。\n\n锁定 iPhone 即可查看新密码键盘。iOS 27 重启后可能恢复为系统默认样式。";
 "Skins successfully applied to all selected cards!\n\nPlease force-close the Wallet app on your iPhone (or reboot) to see your new designs." = "所选卡片的卡面都已写入。\n\n请在 iPhone 上强制关闭“钱包”应用（或重新启动）以看到新卡面。";
 "Remove skin" = "移除卡面";
 "Change Skin" = "更换卡面";

@@ -989,6 +989,7 @@ class AppViewModel: ObservableObject {
     @Published var passcodeTabMode: PasscodeTabMode = .applyTheme
     @Published var creatorSubMode: CreatorSubMode = .posterSlice
     @Published var creatorPosterImage: NSImage? = nil
+    @Published var creatorUsesDefaultPoster = false
     @Published var creatorPosterZoom: Double = 1.0
     @Published var creatorPosterOffset: CGPoint = .zero
     @Published var creatorMaskToCircles: Bool = false
@@ -1043,6 +1044,7 @@ class AppViewModel: ObservableObject {
         }
         
         loadSavedCards()
+        loadDefaultPoster(announce: false)
         checkDevice()
     }
     
@@ -1411,6 +1413,9 @@ class AppViewModel: ObservableObject {
                         self.device = dev
                         self.isCheckingDevice = false
                         if dev.connected {
+                            if let cacheVersion = dev.passcodeCacheVersion {
+                                self.targetTelephonyVersion = cacheVersion
+                            }
                             let deviceName = dev.name ?? "iPhone"
                             if changed || !silent {
                                 if dev.isWiFi {
@@ -1776,7 +1781,7 @@ class AppViewModel: ObservableObject {
                 )
                 await MainActor.run {
                     self.loadedPasscodeTheme = themeInfo
-                    self.targetTelephonyVersion = detectedVersion
+                    self.targetTelephonyVersion = self.device?.passcodeCacheVersion ?? detectedVersion
                     self.isInspectingTheme = false
                     self.setStatus("Loaded passcode theme '%@' (%@ assets)", name, "\(fileCount)")
                     self.log("Loaded .passthm: %@ [%@] with %@ image assets", name, detectedVersion, "\(fileCount)")
@@ -1805,7 +1810,8 @@ class AppViewModel: ObservableObject {
         setStatus("Starting passcode theme flash...")
         log("Flashing passcode theme '%@' to device...", theme.name)
         let scriptDir = self.scriptDir
-        let targetVer = self.targetTelephonyVersion
+        let targetVer = dev.passcodeCacheVersion ?? self.targetTelephonyVersion
+        targetTelephonyVersion = targetVer
         let targetLang = self.passcodeLanguageTarget.code
         let targetBold = self.passcodeBoldTarget.code
         
@@ -1934,8 +1940,30 @@ class AppViewModel: ObservableObject {
         )
     }
     
+    func loadDefaultPoster(announce: Bool = true) {
+        let name = "DefaultPasscodePoster.png"
+        let candidates = [
+            Bundle.main.resourceURL?.appendingPathComponent(name),
+            URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+                .appendingPathComponent("Resources/\(name)"),
+        ].compactMap { $0 }
+        guard let image = candidates.compactMap({ NSImage(contentsOf: $0) }).first else {
+            if announce { errorMessage = L("Could not load the Chinese numeral example.") }
+            return
+        }
+        creatorSubMode = .posterSlice
+        creatorPosterImage = image
+        creatorPosterZoom = 1.0
+        creatorPosterOffset = .zero
+        creatorMaskToCircles = true
+        creatorUsesDefaultPoster = true
+        updatePosterSlicing()
+        if announce { setStatus("Chinese numeral example loaded · Ready to export or flash") }
+    }
+
     func setPosterImage(_ img: NSImage) {
         creatorPosterImage = img
+        creatorUsesDefaultPoster = false
         creatorPosterZoom = 1.0
         creatorPosterOffset = .zero
         updatePosterSlicing()
@@ -1998,6 +2026,7 @@ class AppViewModel: ObservableObject {
     
     func editLoadedThemeInCreator() {
         guard let theme = loadedPasscodeTheme else { return }
+        creatorUsesDefaultPoster = false
         for (digit, img) in theme.keysPreview {
             creatorCustomKeys[digit] = img
             creatorRawIndividualImages[digit] = img
@@ -2013,6 +2042,7 @@ class AppViewModel: ObservableObject {
     
     func clearCreator() {
         creatorPosterImage = nil
+        creatorUsesDefaultPoster = false
         creatorPosterZoom = 1.0
         creatorPosterOffset = .zero
         creatorSlicedKeys.removeAll()
@@ -2563,7 +2593,7 @@ struct ContentView: View {
             if vm.didClearPasscodeCache {
                 Text(L("Passcode cache cleared. Restart your iPhone to regenerate the default keypad."))
             } else if vm.selectedTab == .passcodeThemes {
-                Text(L("Passcode theme successfully applied!\n\nLock your iPhone (or restart) to see your new passcode keypad."))
+                Text(L("Passcode theme successfully applied!\n\nLock your iPhone to see your new keypad. On iOS 27, restarting may restore the default keypad."))
             } else {
                 Text(L("Skins successfully applied to all selected cards!\n\nPlease force-close the Wallet app on your iPhone (or reboot) to see your new designs."))
             }
@@ -3585,6 +3615,7 @@ struct ContentView: View {
                 .pickerStyle(.menu)
                 .controlSize(.regular)
                 .frame(width: 205)
+                .disabled(vm.device?.isUSBConnectedIPhone == true && vm.device?.passcodeCacheVersion != nil)
             }
             
             Text("·")
@@ -3856,13 +3887,19 @@ struct ContentView: View {
                                     }
                                     .faceLiftSecondaryButton()
                                     .controlSize(.small)
-                                    
+
                                     Button(L("Remove")) {
                                         vm.clearCreator()
                                     }
                                     .faceLiftSecondaryButton()
                                     .controlSize(.small)
                                 }
+
+                                Button(L("Use Chinese Numeral Example")) {
+                                    vm.loadDefaultPoster()
+                                }
+                                .faceLiftSecondaryButton()
+                                .controlSize(.small)
                             }
                         }
                         .padding(10)
@@ -3883,6 +3920,12 @@ struct ContentView: View {
                             }
                             .faceLiftProminentButton()
                             .tint(FaceLiftPalette.blue)
+                            .controlSize(.regular)
+
+                            Button(L("Use Chinese Numeral Example")) {
+                                vm.loadDefaultPoster()
+                            }
+                            .faceLiftSecondaryButton()
                             .controlSize(.regular)
                         }
                         .frame(maxWidth: .infinity)
@@ -4225,15 +4268,17 @@ struct ContentView: View {
             }
             
             // Authentic Digits & Letters Typography
-            VStack(spacing: 1) {
-                Text(btn.digit)
-                    .font(.system(size: 28, weight: .light))
-                    .foregroundColor(.white)
-                if !btn.letters.isEmpty {
-                    Text(btn.letters)
-                        .font(.system(size: 9, weight: .semibold))
-                        .tracking(1)
-                        .foregroundColor(.white.opacity(0.9))
+            if !(vm.creatorUsesDefaultPoster && vm.creatorSubMode == .posterSlice) {
+                VStack(spacing: 1) {
+                    Text(btn.digit)
+                        .font(.system(size: 28, weight: .light))
+                        .foregroundColor(.white)
+                    if !btn.letters.isEmpty {
+                        Text(btn.letters)
+                            .font(.system(size: 9, weight: .semibold))
+                            .tracking(1)
+                            .foregroundColor(.white.opacity(0.9))
+                    }
                 }
             }
         }

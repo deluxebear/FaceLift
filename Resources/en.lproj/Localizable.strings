@@ -72,6 +72,9 @@
 "Interactive iPhone Lock Screen Preview" = "Interactive iPhone Lock Screen Preview";
 "Drag dialer to pan · Use slider to zoom" = "Drag dialer to pan · Use slider to zoom";
 "Poster Artwork" = "Poster Artwork";
+"Use Chinese Numeral Example" = "Use Chinese Numeral Example";
+"Could not load the Chinese numeral example." = "Could not load the Chinese numeral example.";
+"Chinese numeral example loaded · Ready to export or flash" = "Chinese numeral example loaded · Ready to export or flash";
 "Artwork Loaded" = "Artwork Loaded";
 "Remove" = "Remove";
 "Drop poster or wallpaper here" = "Drop poster or wallpaper here";
@@ -149,7 +152,7 @@
 "No card hashes were added. Check the format or remove duplicates." = "No card hashes were added. Check the format or remove duplicates.";
 "Success!" = "Success!";
 "OK" = "OK";
-"Passcode theme successfully applied!\n\nLock your iPhone (or restart) to see your new passcode keypad." = "Passcode theme successfully applied!\n\nLock your iPhone (or restart) to see your new passcode keypad.";
+"Passcode theme successfully applied!\n\nLock your iPhone to see your new keypad. On iOS 27, restarting may restore the default keypad." = "Passcode theme successfully applied!\n\nLock your iPhone to see your new keypad. On iOS 27, restarting may restore the default keypad.";
 "Skins successfully applied to all selected cards!\n\nPlease force-close the Wallet app on your iPhone (or reboot) to see your new designs." = "Skins successfully applied to all selected cards!\n\nPlease force-close the Wallet app on your iPhone (or reboot) to see your new designs.";
 "Remove skin" = "Remove skin";
 "Change Skin" = "Change Skin";

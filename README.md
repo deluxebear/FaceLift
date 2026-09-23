@@ -67,7 +67,7 @@ FaceLift continues development from AirCard v1.2.3 with these additions:
 2. Drag & drop any `.passthm` file into the app (or click **Choose .passthm File**).
 3. FaceLift will inspect the theme and display an interactive preview on the numeric keypad (0–9, *, #).
 4. Click **Apply Passcode Theme**.
-5. Restart your iPhone to reload the lock screen cache and see your custom passcode buttons!
+  5. Lock your iPhone to see the custom passcode buttons. On a tested iPhone 16 Pro running iOS 27.0, a reboot regenerated the default keypad even after the theme was applied successfully. Reapply the theme after reboot if needed; persistence across reboot is not currently verified.
 
 > [!TIP]
 > **Universal Language & Bold Text Support:**  
