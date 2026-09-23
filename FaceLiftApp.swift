@@ -162,6 +162,28 @@ extension View {
             Color(NSColor.controlBackgroundColor).opacity(0.4).cornerRadius(cornerRadius)
         }
     }
+
+    /// New workspace surfaces use native Liquid Glass on macOS 26+.
+    @ViewBuilder
+    func faceLiftWorkspacePanel(cornerRadius: CGFloat, tint: Color? = nil) -> some View {
+        if #available(macOS 26.0, *) {
+            self.glassEffect(
+                faceLiftGlass(tint, false),
+                in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+            )
+        } else {
+            self.background(.regularMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        }
+    }
+
+    @ViewBuilder
+    func faceLiftWorkspaceChrome() -> some View {
+        if #available(macOS 26.0, *) {
+            self.glassEffect(.regular, in: Rectangle())
+        } else {
+            self.background(.regularMaterial)
+        }
+    }
 }
 
 /// Translucent keypad key surface: real interactive Liquid Glass on macOS 26+,
@@ -390,6 +412,104 @@ struct DeviceInfo: Codable {
     var error: String?
     
     var isWiFi: Bool { connection == "wifi" }
+    var isUSBConnectedIPhone: Bool {
+        connected && connection == "usb" && udid != nil && product?.hasPrefix("iPhone") == true
+    }
+    var passcodeCacheVersion: String? {
+        guard let major = Int(version?.split(separator: ".").first ?? "") else { return nil }
+        if major >= 18 { return "TelephonyUI-10" }
+        if major >= 16 { return "TelephonyUI-9" }
+        if major >= 14 { return "TelephonyUI-8" }
+        return nil
+    }
+}
+
+private enum PhoneFrontStyle {
+    case dynamicIsland, notch, homeButton
+}
+
+/// Device ProductType comes from device_helper; unknown models use a modern
+/// iPhone outline until Apple publishes their exact front geometry.
+private struct PhonePreviewProfile {
+    let front: PhoneFrontStyle
+    let aspectRatio: CGFloat
+    let maxWidth: CGFloat
+    let cornerRadius: CGFloat
+
+    static func forDevice(_ device: DeviceInfo?) -> PhonePreviewProfile {
+        let product = (device?.product ?? "").lowercased()
+        let name = (device?.name ?? "").lowercased()
+        let generation = Int(product.dropFirst("iphone".count).split(separator: ",").first ?? "") ?? 0
+        let isSE = ["iphone8,4", "iphone12,8", "iphone14,6"].contains(product)
+            || name.contains("iphone se")
+        let isNotch = product == "iphone17,5" || name.contains("16e") || name.contains("17e")
+            || (generation > 0 && generation < 15)
+        let isLarge = name.contains("max") || name.contains("plus")
+            || ["iphone15,3", "iphone15,5", "iphone16,2", "iphone17,2", "iphone17,4"].contains(product)
+        let isMini = name.contains("mini") || ["iphone13,1", "iphone14,4"].contains(product)
+
+        if isSE {
+            return PhonePreviewProfile(front: .homeButton, aspectRatio: 1.78, maxWidth: 244, cornerRadius: 25)
+        }
+        return PhonePreviewProfile(
+            front: isNotch ? .notch : .dynamicIsland,
+            aspectRatio: isLarge ? 2.16 : 2.12,
+            maxWidth: isLarge ? 280 : (isMini ? 248 : 266),
+            cornerRadius: 37
+        )
+    }
+}
+
+private struct PhoneFrameChrome: ViewModifier {
+    let profile: PhonePreviewProfile
+
+    func body(content: Content) -> some View {
+        content
+            .clipShape(RoundedRectangle(cornerRadius: profile.cornerRadius, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: profile.cornerRadius, style: .continuous)
+                    .stroke(Color.gray.opacity(0.85), lineWidth: 3)
+            )
+            .overlay(alignment: .top) {
+                Group {
+                    switch profile.front {
+                    case .dynamicIsland:
+                        Capsule()
+                            .fill(.black)
+                            .frame(width: 70, height: 20)
+                            .overlay(Capsule().stroke(Color.white.opacity(0.12)))
+                            .padding(.top, 10)
+                    case .notch:
+                        UnevenRoundedRectangle(bottomLeadingRadius: 12, bottomTrailingRadius: 12)
+                            .fill(.black)
+                            .frame(width: 112, height: 27)
+                            .overlay(alignment: .bottom) {
+                                Capsule().fill(Color.gray.opacity(0.55)).frame(width: 35, height: 3).padding(.bottom, 8)
+                            }
+                    case .homeButton:
+                        HStack(spacing: 8) {
+                            Circle().fill(Color.gray.opacity(0.55)).frame(width: 6, height: 6)
+                            Capsule().fill(Color.gray.opacity(0.55)).frame(width: 38, height: 4)
+                        }
+                        .padding(.top, 14)
+                    }
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if profile.front == .homeButton {
+                    Circle()
+                        .stroke(Color.white.opacity(0.7), lineWidth: 2)
+                        .frame(width: 28, height: 28)
+                        .padding(.bottom, 10)
+                } else {
+                    Capsule().fill(.white).frame(width: 90, height: 4).padding(.bottom, 10)
+                }
+            }
+            .overlay(alignment: .trailing) {
+                Capsule().fill(Color.gray.opacity(0.8)).frame(width: 3, height: 50).offset(x: 2, y: -96)
+            }
+            .shadow(color: .black.opacity(0.20), radius: 13, y: 7)
+    }
 }
 
 struct CardItem: Identifiable, Hashable {
@@ -888,6 +1008,7 @@ class AppViewModel: ObservableObject {
     @Published var progress: Double = 0.0
     @Published var logs: [ActivityLogLine] = []
     @Published var showSuccessAlert = false
+    @Published var didClearPasscodeCache = false
     @Published var errorMessage: String?
     private var statusTemplate = "Ready"
     private var statusArguments: [String] = []
@@ -1209,20 +1330,26 @@ class AppViewModel: ObservableObject {
         }
     }
     
-    func addCardHash(_ raw: String) {
+    func addCardHash(_ raw: String) -> (added: Int, rejected: [String]) {
         let components = raw.components(separatedBy: CharacterSet(charactersIn: " \n\r\t,;"))
         var addedCount = 0
+        var rejected: [String] = []
         for comp in components {
             let clean = comp.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "."))
-            if clean.count >= 16 && clean.count <= 64 && !cards.contains(where: { $0.id == clean }) {
+            let validHash = clean.range(of: "^[-A-Za-z0-9_+=]{16,64}$", options: .regularExpression) != nil
+            if validHash && !cards.contains(where: { $0.id == clean }) {
                 cards.append(CardItem(id: clean, isSelected: true))
                 addedCount += 1
                 log("Added card: %@", clean)
+            } else if !comp.isEmpty {
+                rejected.append(clean.isEmpty ? comp : clean)
             }
         }
         if addedCount > 0 {
             saveCards()
+            setStatus("Added %@ card hash(es) to the list.", "\(addedCount)")
         }
+        return (addedCount, rejected)
     }
     
     func deleteCard(id: String) {
@@ -1253,9 +1380,10 @@ class AppViewModel: ObservableObject {
     
     // MARK: - Device Connection
     
-    func checkDevice() {
+    func checkDevice(silent: Bool = false) {
+        guard !isCheckingDevice else { return }
         isCheckingDevice = true
-        setStatus("Checking connected devices...")
+        if !silent { setStatus("Checking connected devices...") }
         let scriptDir = self.scriptDir
         
         Task.detached {
@@ -1276,33 +1404,41 @@ class AppViewModel: ObservableObject {
                 
                 if let dev = try? JSONDecoder().decode(DeviceInfo.self, from: data) {
                     await MainActor.run {
+                        let changed = self.device?.connected != dev.connected
+                            || self.device?.udid != dev.udid
+                            || self.device?.product != dev.product
+                            || self.device?.connection != dev.connection
                         self.device = dev
                         self.isCheckingDevice = false
                         if dev.connected {
                             let deviceName = dev.name ?? "iPhone"
-                            if dev.isWiFi {
-                                self.setStatus("Connected to %@ via Wi-Fi", deviceName)
-                            } else {
-                                self.setStatus("Connected to %@", deviceName)
+                            if changed || !silent {
+                                if dev.isWiFi {
+                                    self.setStatus("Connected to %@ via Wi-Fi", deviceName)
+                                } else {
+                                    self.setStatus("Connected to %@", deviceName)
+                                }
+                                self.log("Device connected (%@): %@ (%@, iOS %@)", dev.isWiFi ? "Wi-Fi" : "USB", deviceName, dev.product ?? "", dev.version ?? "")
                             }
-                            self.log("Device connected (%@): %@ (%@, iOS %@)", dev.isWiFi ? "Wi-Fi" : "USB", deviceName, dev.product ?? "", dev.version ?? "")
                         } else if dev.error == "device_helper_missing" {
-                            self.setStatus("Device tools are missing from this build.")
-                            self.log("Bundled device_helper not found — detection cannot run.")
-                        } else {
+                            if changed || !silent {
+                                self.setStatus("Device tools are missing from this build.")
+                                self.log("Bundled device_helper not found — detection cannot run.")
+                            }
+                        } else if changed || !silent {
                             self.setStatus("No iPhone found. Please connect via USB.")
                         }
                     }
                 } else {
                     await MainActor.run {
                         self.isCheckingDevice = false
-                        self.setStatus("No iPhone found. Please connect via USB.")
+                        if !silent { self.setStatus("No iPhone found. Please connect via USB.") }
                     }
                 }
             } catch {
                 await MainActor.run {
                     self.isCheckingDevice = false
-                    self.setStatus("Device detection failed: %@", error.localizedDescription)
+                    if !silent { self.setStatus("Device detection failed: %@", error.localizedDescription) }
                 }
             }
         }
@@ -1447,6 +1583,7 @@ class AppViewModel: ObservableObject {
         }
         
         isFlashing = true
+        didClearPasscodeCache = false
         showLogs = true
         progress = 0.0
         log("Starting skin application for %@ card(s)...", "\(selectedCardsWithSkin.count)")
@@ -1655,12 +1792,14 @@ class AppViewModel: ObservableObject {
     
     func flashPasscodeTheme() {
         guard let theme = loadedPasscodeTheme else { return }
-        guard let dev = device, dev.connected, let udid = dev.udid else {
-            errorMessage = L("Please connect and trust your iPhone first.")
+        guard let dev = device, dev.isUSBConnectedIPhone, let udid = dev.udid else {
+            errorMessage = L("Connect your iPhone with USB to write a passcode theme.")
             return
         }
         
         isFlashing = true
+        didClearPasscodeCache = false
+        errorMessage = nil
         showLogs = true
         progress = 0.0
         setStatus("Starting passcode theme flash...")
@@ -1887,8 +2026,8 @@ class AppViewModel: ObservableObject {
             errorMessage = L("Please add at least one key icon or import a poster image first.")
             return
         }
-        guard let dev = device, dev.connected, dev.udid != nil else {
-            errorMessage = L("Please connect and trust your iPhone first.")
+        guard let dev = device, dev.isUSBConnectedIPhone else {
+            errorMessage = L("Connect your iPhone with USB to write a passcode theme.")
             return
         }
         
@@ -1910,6 +2049,72 @@ class AppViewModel: ObservableObject {
         )
         self.loadedPasscodeTheme = themeInfo
         self.flashPasscodeTheme()
+    }
+
+    func restoreDefaultPasscode() {
+        guard let dev = device, dev.isUSBConnectedIPhone, let udid = dev.udid,
+              let version = dev.passcodeCacheVersion else {
+            errorMessage = L("Connect a supported iPhone with USB to restore the default passcode.")
+            return
+        }
+        guard !isFlashing && !isPullingSkins else { return }
+
+        isFlashing = true
+        didClearPasscodeCache = false
+        errorMessage = nil
+        showLogs = true
+        progress = 0
+        setStatus("Clearing custom passcode cache...")
+        let scriptDir = self.scriptDir
+
+        Task.detached {
+            let process = Process()
+            process.executableURL = AppViewModel.pythonExecutableURL
+            process.environment = AppViewModel.processEnvironment
+            process.currentDirectoryURL = URL(fileURLWithPath: scriptDir)
+            process.arguments = ["facelift_backend.py", "--restore-default-passcode", udid, version]
+            let pipe = Pipe()
+            process.standardOutput = pipe
+            process.standardError = FileHandle.nullDevice
+
+            var succeeded = false
+            var detail = ""
+            var backupPath = ""
+            do {
+                try process.run()
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                process.waitUntilExit()
+                if let line = String(data: data, encoding: .utf8)?.split(separator: "\n").last,
+                   let json = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any] {
+                    succeeded = process.terminationStatus == 0 && (json["ok"] as? Bool) == true
+                    detail = json["error"] as? String ?? ""
+                    backupPath = json["backup"] as? String ?? ""
+                }
+            } catch {
+                detail = error.localizedDescription
+            }
+
+            let result = succeeded
+            let failureDetail = detail
+            let savedBackup = backupPath
+            await MainActor.run {
+                self.isFlashing = false
+                if result {
+                    self.progress = 1
+                    self.loadedPasscodeTheme = nil
+                    self.didClearPasscodeCache = true
+                    self.setStatus("Passcode cache cleared. Restart your iPhone.")
+                    if !savedBackup.isEmpty {
+                        self.log("Passcode cache backup saved at %@.", savedBackup)
+                    }
+                    self.showSuccessAlert = true
+                } else {
+                    self.errorMessage = L("Could not restore the default passcode. Check the log.")
+                    self.setStatus("Could not restore the default passcode. Check the log.")
+                    self.log("Passcode reset failed: %@", failureDetail)
+                }
+            }
+        }
     }
 }
 
@@ -2155,10 +2360,155 @@ struct WalletCardView: View {
 
 // MARK: - Main UI View
 
+private enum WorkspaceSection: String, CaseIterable {
+    case cards, passcode, creator, device, settings
+
+    @MainActor var title: String {
+        switch self {
+        case .cards: return L("Card Management")
+        case .passcode: return L("Lock Screen")
+        case .creator: return L("Theme Creator")
+        case .device: return L("Device Connection")
+        case .settings: return L("Settings")
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .cards: return "creditcard"
+        case .passcode: return "lock.iphone"
+        case .creator: return "square.grid.2x2"
+        case .device: return "iphone"
+        case .settings: return "gearshape"
+        }
+    }
+}
+
+private enum FaceLiftPalette {
+    static let ink = Color(red: 0.08, green: 0.13, blue: 0.24)
+    static let muted = Color(red: 0.40, green: 0.47, blue: 0.60)
+    static let blue = Color(red: 0.08, green: 0.40, blue: 0.95)
+    static let line = Color(red: 0.82, green: 0.87, blue: 0.96)
+    static let surface = Color.white.opacity(0.88)
+}
+
+private struct WalletTileView: View {
+    @Binding var card: CardItem
+    let index: Int
+    let onPickImage: () -> Void
+    let onClearImage: () -> Void
+    let onDelete: () -> Void
+    let onStoreImage: (URL) -> Void
+    @State private var isTargeted = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(LinearGradient(colors: [Color(red: 0.13, green: 0.35, blue: 0.75), Color(red: 0.03, green: 0.12, blue: 0.31)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                if let image = card.customImage {
+                    GeometryReader { proxy in
+                        Image(nsImage: image)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: proxy.size.width, height: proxy.size.height)
+                            .clipped()
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                } else {
+                    VStack(alignment: .leading) {
+                        Image(systemName: "wave.3.right")
+                            .font(.title3)
+                        Spacer()
+                        Text(L("Card #%@", String(index + 1)))
+                            .font(.title3.weight(.semibold))
+                        Text(card.id.prefix(8) + "…" + card.id.suffix(6))
+                            .font(.caption.monospaced())
+                            .foregroundStyle(.white.opacity(0.72))
+                    }
+                    .foregroundStyle(.white)
+                    .padding(17)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+                }
+                if card.customImage == nil {
+                    Label(L("Add Artwork"), systemImage: "plus")
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.white.opacity(0.18), in: Capsule())
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                        .padding(12)
+                }
+            }
+            .aspectRatio(1.59, contentMode: .fit)
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(.white.opacity(0.28), lineWidth: 1))
+            .onTapGesture(perform: onPickImage)
+            .onDrop(of: [UTType.fileURL], isTargeted: $isTargeted) { providers in
+                guard let provider = providers.first else { return false }
+                provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+                    let url = (item as? URL) ?? (item as? Data).flatMap { URL(dataRepresentation: $0, relativeTo: nil) }
+                    guard let url, NSImage(contentsOf: url) != nil else { return }
+                    Task { @MainActor in onStoreImage(url) }
+                }
+                return true
+            }
+
+            HStack(alignment: .top, spacing: 8) {
+                Button { card.isSelected.toggle() } label: {
+                    Image(systemName: card.isSelected ? "checkmark.square.fill" : "square")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundStyle(card.isSelected ? FaceLiftPalette.blue : FaceLiftPalette.muted)
+                }
+                .buttonStyle(.plain)
+                .help(L("Include in flash"))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(L("Card #%@", String(index + 1)))
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundStyle(FaceLiftPalette.ink)
+                    Text(card.customImage == nil ? L("Artwork not set") : L("Artwork ready"))
+                        .font(.caption)
+                        .foregroundStyle(FaceLiftPalette.muted)
+                }
+                Spacer(minLength: 0)
+                Menu {
+                    Button(L("Change Skin"), action: onPickImage)
+                    if card.customImage != nil { Button(L("Remove skin"), action: onClearImage) }
+                    Button(L("Copy full hash")) {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(card.id, forType: .string)
+                    }
+                    Divider()
+                    Button(L("Remove from list"), role: .destructive, action: onDelete)
+                } label: {
+                    Image(systemName: "ellipsis")
+                        .font(.system(size: 15, weight: .bold))
+                        .frame(width: 30, height: 30)
+                        .background(Color.white, in: RoundedRectangle(cornerRadius: 9))
+                        .overlay(RoundedRectangle(cornerRadius: 9).stroke(FaceLiftPalette.line))
+                }
+                .menuStyle(.borderlessButton)
+                .frame(width: 34)
+            }
+        }
+        .padding(12)
+        .faceLiftWorkspacePanel(cornerRadius: 17)
+        .overlay(RoundedRectangle(cornerRadius: 17).stroke(card.isSelected ? FaceLiftPalette.blue.opacity(0.72) : FaceLiftPalette.line, lineWidth: card.isSelected ? 1.5 : 1))
+        .shadow(color: FaceLiftPalette.blue.opacity(0.06), radius: 12, y: 5)
+    }
+}
+
 struct ContentView: View {
     @StateObject private var vm = AppViewModel()
     @ObservedObject private var language = AppLanguage.shared
     @State private var showCredits = false
+    @State private var showGuide = false
+    @State private var showRestorePasscodeConfirmation = false
+    @State private var section: WorkspaceSection = .cards
+    @State private var cardSearch = ""
+    @State private var manualHashFeedback = ""
+    @State private var previewCardIndex = 0
     @State private var dragOffsetStart: CGPoint = .zero
     @State private var dragKeyStartOffsets: [String: CGPoint] = [:]
     @State private var isTargetedPoster = false
@@ -2169,55 +2519,73 @@ struct ContentView: View {
     }
     
     var body: some View {
-        Group {
-            if vm.selectedTab == .walletCards {
-                ScrollView {
-                    if vm.cards.isEmpty {
-                        emptyStateView
-                            .padding(.top, 40)
-                    } else {
-                        LazyVGrid(
-                            columns: [GridItem(.adaptive(minimum: 310, maximum: 360), spacing: 20)],
-                            spacing: 20
-                        ) {
-                            ForEach(Array(vm.cards.indices), id: \.self) { idx in
-                                WalletCardView(
-                                    card: $vm.cards[idx],
-                                    cardIndex: idx,
-                                    onPickImage: { openCardImagePicker(for: vm.cards[idx].id) },
-                                    onClearImage: { vm.clearCardImage(for: vm.cards[idx].id) },
-                                    onDelete: { vm.deleteCard(id: vm.cards[idx].id) },
-                                    onStoreImage: { vm.storeSkin(for: vm.cards[idx].id, url: $0) }
-                                )
+        ZStack {
+            LinearGradient(colors: [Color(red: 0.90, green: 0.93, blue: 1), Color(red: 0.96, green: 0.98, blue: 1), Color(red: 0.92, green: 0.95, blue: 1)], startPoint: .topLeading, endPoint: .bottomTrailing)
+                .ignoresSafeArea()
+            HStack(spacing: 0) {
+                sidebar
+                    .frame(width: 218)
+                VStack(spacing: 0) {
+                    appHeader
+                    HStack(spacing: 0) {
+                        Group {
+                            switch section {
+                            case .cards: walletWorkspace
+                            case .passcode, .creator: passcodeWorkspace
+                            case .device: deviceWorkspace
+                            case .settings: settingsWorkspace
                             }
                         }
-                        .padding(20)
-                        .faceLiftGlassGroup()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        if section == .cards {
+                            walletPreview
+                                .frame(width: 332)
+                                .padding(.trailing, 18)
+                                .padding(.bottom, 16)
+                        } else if section == .passcode || section == .creator {
+                            passcodePreview
+                                .frame(width: 332)
+                                .padding(.trailing, 18)
+                                .padding(.bottom, 16)
+                        }
                     }
+                    workspaceFooter
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                passcodeThemeWorkspaceView
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .ignoresSafeArea(.container, edges: .top)
         }
-        .frame(minWidth: 880, minHeight: 680)
-        // Floating chrome: workspace content scrolls underneath, so the
-        // Liquid Glass header/toolbar/status bars blur live content on macOS 26+.
-        .safeAreaInset(edge: .top, spacing: 0) { topChrome }
-        .safeAreaInset(edge: .bottom, spacing: 0) { bottomChrome }
+        .frame(minWidth: 1120, minHeight: 760)
+        .preferredColorScheme(.light)
         .alert("Success!", isPresented: $vm.showSuccessAlert) {
             Button(L("OK")) {}
         } message: {
-            if vm.selectedTab == .passcodeThemes {
+            if vm.didClearPasscodeCache {
+                Text(L("Passcode cache cleared. Restart your iPhone to regenerate the default keypad."))
+            } else if vm.selectedTab == .passcodeThemes {
                 Text(L("Passcode theme successfully applied!\n\nLock your iPhone (or restart) to see your new passcode keypad."))
             } else {
                 Text(L("Skins successfully applied to all selected cards!\n\nPlease force-close the Wallet app on your iPhone (or reboot) to see your new designs."))
             }
         }
+        .confirmationDialog(L("Restore Default Passcode?"), isPresented: $showRestorePasscodeConfirmation) {
+            Button(L("Restore Default Passcode"), role: .destructive) { vm.restoreDefaultPasscode() }
+            Button(L("Cancel"), role: .cancel) {}
+        } message: {
+            Text(L("This backs up and removes the passcode keypad cache for this iOS version. Restart the iPhone afterward so iOS can rebuild its default keypad."))
+        }
+        .alert(L("Error"), isPresented: Binding(
+            get: { vm.errorMessage != nil },
+            set: { if !$0 { vm.errorMessage = nil } }
+        )) {
+            Button(L("OK")) { vm.errorMessage = nil }
+        } message: {
+            Text(vm.errorMessage ?? "")
+        }
         .sheet(isPresented: $showCredits) {
             creditsSheet
         }
+        .sheet(isPresented: $showGuide) { guideSheet }
         .sheet(isPresented: $vm.showAddCardSheet) {
             addCardSheet
         }
@@ -2227,6 +2595,657 @@ struct ContentView: View {
             }
             vm.dismissScanPrompt()
         }
+        .onChange(of: vm.cards.count) { _, count in
+            if count == 0 || previewCardIndex >= count { previewCardIndex = 0 }
+        }
+        .onReceive(Timer.publish(every: 8, on: .main, in: .common).autoconnect()) { _ in
+            if !vm.isFlashing && !vm.isScanningCards && !vm.isPullingSkins {
+                vm.checkDevice(silent: true)
+            }
+        }
+    }
+
+    private func navigate(_ destination: WorkspaceSection) {
+        section = destination
+        switch destination {
+        case .cards, .device, .settings: vm.selectedTab = .walletCards
+        case .passcode:
+            vm.selectedTab = .passcodeThemes
+            vm.passcodeTabMode = .applyTheme
+        case .creator:
+            vm.selectedTab = .passcodeThemes
+            vm.passcodeTabMode = .themeCreator
+        }
+    }
+
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(spacing: 8) {
+                Image(systemName: "creditcard.fill")
+                    .font(.system(size: 31, weight: .medium))
+                    .foregroundStyle(.white)
+                    .frame(width: 62, height: 62)
+                    .background(LinearGradient(colors: [Color(red: 0.28, green: 0.68, blue: 1), FaceLiftPalette.blue], startPoint: .topLeading, endPoint: .bottomTrailing), in: RoundedRectangle(cornerRadius: 17))
+                    .shadow(color: FaceLiftPalette.blue.opacity(0.22), radius: 12, y: 6)
+                Text("FaceLift")
+                    .font(.system(size: 23, weight: .bold))
+                    .foregroundStyle(FaceLiftPalette.ink)
+                Text(L("Make your iPhone yours"))
+                    .font(.system(size: 11))
+                    .foregroundStyle(FaceLiftPalette.muted)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 44)
+            .padding(.bottom, 34)
+
+            VStack(spacing: 6) {
+                ForEach(WorkspaceSection.allCases, id: \.self) { item in
+                    Button { navigate(item) } label: {
+                        HStack(spacing: 14) {
+                            Image(systemName: item.symbol)
+                                .font(.system(size: 18, weight: .medium))
+                                .frame(width: 24)
+                            Text(item.title)
+                                .font(.system(size: 14, weight: .semibold))
+                            Spacer()
+                        }
+                        .foregroundStyle(section == item ? Color.white : FaceLiftPalette.ink)
+                        .padding(.horizontal, 14)
+                        .frame(maxWidth: .infinity, minHeight: 45)
+                        .background(section == item ? FaceLiftPalette.blue : Color.clear, in: RoundedRectangle(cornerRadius: 12))
+                        .contentShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 13)
+            Spacer(minLength: 20)
+            Button { navigate(.device) } label: {
+                HStack(spacing: 9) {
+                    Image(systemName: "iphone.gen3")
+                        .font(.system(size: 26))
+                        .frame(width: 34)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(vm.device?.connected == true ? (vm.device?.name ?? "iPhone") : L("No iPhone connected"))
+                            .font(.system(size: 12, weight: .semibold))
+                            .lineLimit(1)
+                        Text(vm.device?.connected == true ? "iOS \(vm.device?.version ?? "") · \(vm.device?.isWiFi == true ? L("Wi-Fi") : L("USB"))" : L("Connect with USB"))
+                            .font(.system(size: 10))
+                            .foregroundStyle(FaceLiftPalette.muted)
+                    }
+                    Spacer(minLength: 0)
+                    Circle()
+                        .fill(vm.device?.connected == true ? (vm.device?.isWiFi == true ? Color.orange : Color.green) : Color.gray)
+                        .frame(width: 8, height: 8)
+                }
+                .foregroundStyle(FaceLiftPalette.ink)
+                .padding(12)
+                .faceLiftWorkspacePanel(cornerRadius: 14, tint: FaceLiftPalette.blue.opacity(0.08))
+            }
+            .buttonStyle(.plain)
+            .padding(13)
+        }
+        .faceLiftWorkspaceChrome()
+        .overlay(alignment: .trailing) { Rectangle().fill(FaceLiftPalette.line.opacity(0.65)).frame(width: 1) }
+    }
+
+    private var appHeader: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(workspaceTitle)
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundStyle(FaceLiftPalette.ink)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Text(workspaceSubtitle)
+                    .font(.system(size: 14))
+                    .foregroundStyle(FaceLiftPalette.muted)
+                    .lineLimit(1)
+            }
+            Spacer()
+            Button { showGuide = true } label: { Label(L("Guide"), systemImage: "book") }
+                .faceLiftSecondaryButton()
+            Button { showGuide = true } label: { Label(L("Help"), systemImage: "questionmark.circle") }
+                .faceLiftSecondaryButton()
+            Menu {
+                Button(L("Activity Log")) { vm.showLogs.toggle() }
+                Button(L("Credits")) { showCredits = true }
+                Button(L("Refresh device connection")) { vm.checkDevice() }
+            } label: { Image(systemName: "ellipsis").frame(width: 22) }
+                .menuStyle(.borderlessButton)
+                .frame(width: 36)
+            Button { navigate(.device) } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "iphone.gen3")
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(vm.device?.connected == true ? (vm.device?.name ?? "iPhone") : L("No iPhone connected"))
+                            .font(.system(size: 12, weight: .semibold))
+                        Text(vm.device?.connected == true ? "iOS \(vm.device?.version ?? "") · \(vm.device?.isWiFi == true ? L("Wi-Fi") : L("USB"))" : L("Connect with USB"))
+                            .font(.system(size: 10))
+                            .foregroundStyle(FaceLiftPalette.muted)
+                    }
+                    Circle().fill(vm.device?.connected == true ? (vm.device?.isWiFi == true ? Color.orange : Color.green) : Color.gray).frame(width: 7, height: 7)
+                    Image(systemName: "chevron.down").font(.system(size: 10))
+                }
+                .foregroundStyle(FaceLiftPalette.ink)
+                .padding(.horizontal, 12)
+                .frame(height: 42)
+                .faceLiftWorkspacePanel(cornerRadius: 12)
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(FaceLiftPalette.line))
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.leading, 25)
+        .padding(.trailing, 20)
+        .frame(height: 95)
+        .faceLiftWorkspaceChrome()
+    }
+
+    private var workspaceTitle: String {
+        switch section {
+        case .cards: return L("Personalize your iPhone")
+        case .passcode: return L("Personalize Your Lock Screen")
+        case .creator: return L("Create a Passcode Theme")
+        case .device: return L("Device Connection")
+        case .settings: return L("Settings")
+        }
+    }
+
+    private var workspaceSubtitle: String {
+        switch section {
+        case .cards: return L("Change Wallet artwork and your lock screen keypad.")
+        case .passcode: return L("Import, preview and apply a .passthm theme.")
+        case .creator: return L("Use a poster or custom images for each key.")
+        case .device: return L("Check your iPhone and connection before writing.")
+        case .settings: return L("Choose interface language.")
+        }
+    }
+
+    private var walletWorkspace: some View {
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 20) {
+                HStack(spacing: 14) {
+                    featureCard(title: L("Wallet Cards"), subtitle: L("Customize Apple Wallet artwork"), symbol: "creditcard.fill", selected: true) { navigate(.cards) }
+                    featureCard(title: L("Lock Screen"), subtitle: L("Apply or create a passcode theme"), symbol: "lock.fill", selected: false) { navigate(.passcode) }
+                }
+                HStack(spacing: 9) {
+                    Text(L("My Cards"))
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundStyle(FaceLiftPalette.ink)
+                    Text("\(vm.cards.count)")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(FaceLiftPalette.muted)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(Color(red: 0.91, green: 0.94, blue: 0.99), in: RoundedRectangle(cornerRadius: 6))
+                    Spacer(minLength: 4)
+                    TextField(L("Search cards by hash or number"), text: $cardSearch)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(maxWidth: 260)
+                }
+                HStack(spacing: 8) {
+                    Button { vm.toggleCardScanning() } label: {
+                        Label(vm.isScanningCards ? L("Stop Scanning") : L("Scan Cards"), systemImage: vm.isScanningCards ? "stop.circle" : "wave.3.right")
+                    }
+                    .faceLiftSecondaryButton()
+                    .disabled(vm.device?.connected != true)
+                    Button { openBulkImagePicker() } label: { Label(L("Set Skin for All..."), systemImage: "photo") }
+                        .faceLiftSecondaryButton()
+                        .disabled(!vm.cards.contains(where: \.isSelected))
+                    Button {
+                        vm.queueSkinPulls(ids: vm.cards.filter(\.isSelected).map(\.id), replacingStored: true)
+                    } label: {
+                        Label(L("Read Selected from iPhone"), systemImage: "iphone.and.arrow.forward")
+                    }
+                    .faceLiftProminentButton()
+                    .tint(FaceLiftPalette.blue)
+                    .disabled(vm.device?.connected != true || vm.device?.isWiFi == true || vm.isPullingSkins || vm.isFlashing || !vm.cards.contains(where: \.isSelected))
+                    .help(L("Read artwork for the selected cards only"))
+                    Spacer(minLength: 0)
+                    Menu {
+                        Button(L("Select All")) { for i in vm.cards.indices { vm.cards[i].isSelected = true } }
+                            .disabled(vm.cards.isEmpty)
+                        Button(L("Deselect All")) { for i in vm.cards.indices { vm.cards[i].isSelected = false } }
+                            .disabled(vm.cards.isEmpty)
+                        Divider()
+                        Button(L("Clear All"), role: .destructive) { vm.clearAllCards() }
+                            .disabled(vm.cards.isEmpty)
+                        Divider()
+                        Button { vm.showAddCardSheet = true } label: { Label(L("Add Manually"), systemImage: "plus") }
+                    } label: { Image(systemName: "ellipsis.circle").frame(width: 22) }
+                }
+                .controlSize(.regular)
+                if vm.isScanningCards { scanningNoticeBanner.clipShape(RoundedRectangle(cornerRadius: 12)) }
+            }
+            .padding(.horizontal, 25)
+            .padding(.top, 8)
+            .padding(.bottom, 15)
+            .overlay(alignment: .bottom) { FaceLiftPalette.line.opacity(0.75).frame(height: 1) }
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                if vm.cards.isEmpty {
+                    emptyStateView
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 20)
+                        .faceLiftWorkspacePanel(cornerRadius: 18)
+                } else if filteredCardIndices.isEmpty {
+                    ContentUnavailableView.search(text: cardSearch)
+                        .frame(maxWidth: .infinity)
+                } else {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 210, maximum: 300), spacing: 13)], spacing: 13) {
+                        ForEach(filteredCardIndices, id: \.self) { index in
+                            WalletTileView(
+                                card: $vm.cards[index], index: index,
+                                onPickImage: { openCardImagePicker(for: vm.cards[index].id) },
+                                onClearImage: { vm.clearCardImage(for: vm.cards[index].id) },
+                                onDelete: { vm.deleteCard(id: vm.cards[index].id) },
+                                onStoreImage: { vm.storeSkin(for: vm.cards[index].id, url: $0) }
+                            )
+                        }
+                    }
+                }
+                HStack(spacing: 12) {
+                    Image(systemName: "sparkles.rectangle.stack")
+                        .font(.title2)
+                        .foregroundStyle(FaceLiftPalette.blue)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(L("Make a passcode theme"))
+                            .font(.system(size: 14, weight: .bold))
+                        Text(L("Turn a poster into a keypad, or design each key."))
+                            .font(.caption)
+                            .foregroundStyle(FaceLiftPalette.muted)
+                    }
+                    Spacer()
+                    Button(L("Open Creator")) { navigate(.creator) }
+                        .faceLiftSecondaryButton()
+                }
+                .padding(17)
+                .faceLiftWorkspacePanel(cornerRadius: 13, tint: FaceLiftPalette.blue.opacity(0.09))
+                }
+                .padding(.horizontal, 25)
+                .padding(.top, 15)
+                .padding(.bottom, 24)
+            }
+        }
+    }
+
+    private var filteredCardIndices: [Int] {
+        let query = cardSearch.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return Array(vm.cards.indices) }
+        return vm.cards.indices.filter { index in
+            vm.cards[index].id.localizedCaseInsensitiveContains(query) ||
+            String(index + 1).contains(query)
+        }
+    }
+
+    private func featureCard(title: String, subtitle: String, symbol: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 13) {
+                Image(systemName: symbol)
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(selected ? Color.white : FaceLiftPalette.blue)
+                    .frame(width: 52, height: 52)
+                    .background(selected ? FaceLiftPalette.blue : Color(red: 0.89, green: 0.93, blue: 1), in: RoundedRectangle(cornerRadius: 13))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title).font(.system(size: 16, weight: .bold)).foregroundStyle(FaceLiftPalette.ink)
+                    Text(subtitle).font(.system(size: 11)).foregroundStyle(FaceLiftPalette.muted).lineLimit(2)
+                }
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.right").foregroundStyle(FaceLiftPalette.muted)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .faceLiftWorkspacePanel(cornerRadius: 14, tint: selected ? FaceLiftPalette.blue.opacity(0.12) : nil)
+            .overlay(RoundedRectangle(cornerRadius: 14).stroke(selected ? FaceLiftPalette.blue.opacity(0.85) : FaceLiftPalette.line))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var walletPreview: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text(L("Live Preview"))
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(FaceLiftPalette.ink)
+                Spacer()
+            }
+            .padding(.bottom, 13)
+            Picker("", selection: $vm.selectedTab) {
+                Text(L("Wallet Cards")).tag(AppTab.walletCards)
+                Text(L("Lock Screen")).tag(AppTab.passcodeThemes)
+            }
+            .pickerStyle(.segmented)
+            .onChange(of: vm.selectedTab) { _, tab in if tab == .passcodeThemes { navigate(.passcode) } }
+            .padding(.bottom, 18)
+            walletPhone
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            HStack(spacing: 8) {
+                ForEach(0..<min(vm.cards.count, 5), id: \.self) { index in
+                    Button { previewCardIndex = index } label: {
+                        Circle()
+                            .fill(index == previewCardIndex ? FaceLiftPalette.blue : FaceLiftPalette.muted.opacity(0.35))
+                            .frame(width: 8, height: 8)
+                    }
+                    .buttonStyle(.plain)
+                    .help(L("Card #%@", String(index + 1)))
+                }
+            }
+            .frame(height: 30)
+        }
+        .padding(17)
+        .faceLiftWorkspacePanel(cornerRadius: 20)
+        .overlay(RoundedRectangle(cornerRadius: 20).stroke(FaceLiftPalette.line))
+        .shadow(color: FaceLiftPalette.blue.opacity(0.06), radius: 18, y: 6)
+    }
+
+    private var passcodePreview: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text(L("Live Preview"))
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundStyle(FaceLiftPalette.ink)
+                Spacer()
+            }
+            .padding(.bottom, 13)
+            Picker("", selection: $vm.selectedTab) {
+                Text(L("Wallet Cards")).tag(AppTab.walletCards)
+                Text(L("Lock Screen")).tag(AppTab.passcodeThemes)
+            }
+            .pickerStyle(.segmented)
+            .onChange(of: vm.selectedTab) { _, tab in if tab == .walletCards { navigate(.cards) } }
+            Text(vm.device?.connected == true ? (vm.device?.name ?? "iPhone") : L("iPhone Preview"))
+                .font(.caption)
+                .foregroundStyle(FaceLiftPalette.muted)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, 11)
+
+            phoneMockupContainer {
+                if vm.passcodeTabMode == .applyTheme {
+                    applyThemeDialerCanvas
+                } else {
+                    creatorDialerCanvas
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            if vm.passcodeTabMode == .applyTheme {
+                Button { openPasscodeThemePicker() } label: {
+                    Label(vm.loadedPasscodeTheme == nil ? L("Choose .passthm File...") : L("Change..."), systemImage: "folder.badge.plus")
+                        .frame(maxWidth: .infinity)
+                }
+                .faceLiftSecondaryButton()
+            } else {
+                Button { openSavePasscodeThemePanel() } label: {
+                    Label(L("Export .passthm..."), systemImage: "square.and.arrow.up")
+                        .frame(maxWidth: .infinity)
+                }
+                .faceLiftSecondaryButton()
+                .disabled(vm.effectiveCreatorKeys.isEmpty)
+            }
+        }
+        .padding(17)
+        .faceLiftWorkspacePanel(cornerRadius: 20)
+        .overlay(RoundedRectangle(cornerRadius: 20).stroke(FaceLiftPalette.line))
+        .shadow(color: FaceLiftPalette.blue.opacity(0.06), radius: 18, y: 6)
+    }
+
+    private var walletPhone: some View {
+        GeometryReader { proxy in
+            let profile = PhonePreviewProfile.forDevice(vm.device)
+            let width = min(profile.maxWidth, proxy.size.width - 20, (proxy.size.height - 8) / profile.aspectRatio)
+            VStack(spacing: 0) {
+                HStack {
+                    Text("9:41").font(.system(size: 10, weight: .semibold))
+                    Spacer()
+                    Color.clear.frame(width: profile.front == .homeButton ? 45 : 75, height: 18)
+                    Spacer()
+                    Image(systemName: "wifi").font(.system(size: 10))
+                    Image(systemName: "battery.100percent").font(.system(size: 10))
+                }
+                .padding(.horizontal, 18)
+                .padding(.top, 15)
+                HStack {
+                    Text(L("Wallet"))
+                        .font(.system(size: 22, weight: .bold))
+                    Spacer()
+                }
+                .padding(.horizontal, 18)
+                .padding(.top, 22)
+                if vm.cards.isEmpty {
+                    VStack(spacing: 9) {
+                        Image(systemName: "creditcard")
+                            .font(.system(size: 40))
+                        Text(L("Cards appear here"))
+                            .font(.system(size: 13, weight: .semibold))
+                        Text(L("Scan or add a card to preview its artwork."))
+                            .font(.system(size: 10))
+                            .multilineTextAlignment(.center)
+                    }
+                    .foregroundStyle(.white.opacity(0.72))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    let previewCount = min(vm.cards.count, 5)
+                    let visibleIndices = (0..<previewCount).map { (previewCardIndex + $0) % previewCount }
+                    ZStack(alignment: .top) {
+                        ForEach(Array(visibleIndices.enumerated()).reversed(), id: \.element) { slot, index in
+                            let card = vm.cards[index]
+                            ZStack(alignment: .bottomLeading) {
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(LinearGradient(colors: [Color(red: 0.13 + Double(index % 3) * 0.08, green: 0.35, blue: 0.68), Color(red: 0.02, green: 0.09, blue: 0.21)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                if let image = card.customImage {
+                                    Image(nsImage: image)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: width - 34, height: (width - 34) / 1.59)
+                                        .clipped()
+                                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                                } else {
+                                    Text(L("Card #%@", String(index + 1)))
+                                        .font(.system(size: 15, weight: .bold))
+                                        .padding(12)
+                                }
+                            }
+                            .frame(width: width - 34, height: (width - 34) / 1.59)
+                            .overlay(RoundedRectangle(cornerRadius: 12).stroke(.white.opacity(0.3)))
+                            .offset(y: CGFloat(slot) * (profile.front == .homeButton ? 42 : 53))
+                            .onTapGesture { previewCardIndex = index }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                    .padding(.top, 13)
+                }
+                Spacer(minLength: profile.front == .homeButton ? 43 : 16)
+            }
+            .foregroundStyle(.white)
+            .frame(width: width, height: min(proxy.size.height - 4, width * profile.aspectRatio))
+            .background(Color.black, in: RoundedRectangle(cornerRadius: profile.cornerRadius))
+            .modifier(PhoneFrameChrome(profile: profile))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private var passcodeWorkspace: some View {
+        VStack(spacing: 0) {
+            VStack(alignment: .leading, spacing: 15) {
+                HStack(spacing: 12) {
+                    featureCard(title: L("Apply Theme"), subtitle: L("Import a .passthm package"), symbol: "lock.shield", selected: section == .passcode) { navigate(.passcode) }
+                    featureCard(title: L("Theme Creator"), subtitle: L("Poster slicing and individual keys"), symbol: "square.grid.3x3", selected: section == .creator) { navigate(.creator) }
+                }
+                passcodeToolbarView
+            }
+            .padding(.horizontal, 25)
+            .padding(.top, 8)
+            .padding(.bottom, 15)
+            .overlay(alignment: .bottom) { FaceLiftPalette.line.opacity(0.75).frame(height: 1) }
+            ScrollView {
+                passcodeThemeWorkspaceView
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 25)
+                    .padding(.top, 15)
+                    .padding(.bottom, 24)
+            }
+        }
+        .onChange(of: vm.passcodeTabMode) { _, mode in
+            section = mode == .applyTheme ? .passcode : .creator
+        }
+    }
+
+    private var deviceWorkspace: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                HStack(spacing: 18) {
+                    Image(systemName: "iphone.gen3")
+                        .font(.system(size: 51))
+                        .foregroundStyle(FaceLiftPalette.blue)
+                        .frame(width: 95, height: 110)
+                        .background(Color(red: 0.90, green: 0.94, blue: 1), in: RoundedRectangle(cornerRadius: 18))
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(vm.device?.connected == true ? (vm.device?.name ?? "iPhone") : L("No iPhone connected"))
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundStyle(FaceLiftPalette.ink)
+                        Text(vm.device?.connected == true ? "\(vm.device?.product ?? "iPhone") · iOS \(vm.device?.version ?? "")" : L("Connect your iPhone with a USB cable and trust this Mac."))
+                            .foregroundStyle(FaceLiftPalette.muted)
+                        Label(vm.device?.connected == true ? (vm.device?.isWiFi == true ? L("Connected via Wi-Fi") : L("Connected via USB")) : L("Waiting for device"), systemImage: vm.device?.connected == true ? "checkmark.circle.fill" : "circle.dotted")
+                            .foregroundStyle(vm.device?.connected == true ? Color.green : FaceLiftPalette.muted)
+                    }
+                    Spacer()
+                    Button { vm.checkDevice() } label: { Label(L("Refresh device connection"), systemImage: "arrow.clockwise") }
+                        .faceLiftProminentButton()
+                        .tint(FaceLiftPalette.blue)
+                        .disabled(vm.isCheckingDevice)
+                }
+                .padding(22)
+                .faceLiftWorkspacePanel(cornerRadius: 18)
+                .overlay(RoundedRectangle(cornerRadius: 18).stroke(FaceLiftPalette.line))
+
+                VStack(alignment: .leading, spacing: 14) {
+                    Text(L("How to connect"))
+                        .font(.system(size: 17, weight: .bold))
+                    instructionRow("1", L("Connect iPhone to your Mac with USB."))
+                    instructionRow("2", L("Unlock iPhone and tap Trust This Computer."))
+                    instructionRow("3", L("For card scanning, open Apple Pay and tap each card."))
+                    if vm.device?.isWiFi == true {
+                        Label(L("Reading card artwork requires USB. Reconnect with a cable."), systemImage: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                            .padding(.top, 8)
+                    }
+                }
+                .padding(22)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .faceLiftWorkspacePanel(cornerRadius: 18)
+                .overlay(RoundedRectangle(cornerRadius: 18).stroke(FaceLiftPalette.line))
+            }
+            .padding(26)
+        }
+    }
+
+    private var settingsWorkspace: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text(L("Appearance & Language"))
+                        .font(.system(size: 17, weight: .bold))
+                    HStack {
+                        Label(L("Language"), systemImage: "globe")
+                        Spacer()
+                        Picker("", selection: $language.choice) {
+                            Text(L("Follow System")).tag(AppLanguageChoice.system)
+                            Text("English").tag(AppLanguageChoice.en)
+                            Text("简体中文").tag(AppLanguageChoice.zhHans)
+                        }
+                        .frame(width: 180)
+                    }
+                }
+                .padding(22)
+                .faceLiftWorkspacePanel(cornerRadius: 18)
+                .overlay(RoundedRectangle(cornerRadius: 18).stroke(FaceLiftPalette.line))
+                Button { showCredits = true } label: { Label(L("Credits"), systemImage: "heart") }
+                    .faceLiftSecondaryButton()
+            }
+            .padding(26)
+        }
+    }
+
+    private func instructionRow(_ number: String, _ text: String) -> some View {
+        HStack(spacing: 12) {
+            Text(number)
+                .font(.system(size: 13, weight: .bold))
+                .foregroundStyle(FaceLiftPalette.blue)
+                .frame(width: 27, height: 27)
+                .background(Color(red: 0.90, green: 0.94, blue: 1), in: Circle())
+            Text(text)
+                .foregroundStyle(FaceLiftPalette.ink)
+        }
+    }
+
+    private var workspaceFooter: some View {
+        VStack(spacing: 0) {
+            if vm.showLogs { activityLogView.frame(height: 130) }
+            Divider()
+            HStack(spacing: 12) {
+                Circle()
+                    .fill(vm.isFlashing ? Color.orange : vm.device?.connected == true ? Color.green : Color.gray)
+                    .frame(width: 7, height: 7)
+                Text(vm.localizedStatus)
+                    .font(.caption)
+                    .lineLimit(1)
+                if vm.isFlashing {
+                    ProgressView(value: vm.progress).frame(width: 130)
+                    Text("\(Int(vm.progress * 100))%").font(.caption.monospacedDigit())
+                }
+                Spacer(minLength: 0)
+                Button { withAnimation { vm.showLogs.toggle() } } label: { Label(L("Log"), systemImage: "terminal") }
+                    .faceLiftSecondaryButton()
+                if section == .cards {
+                    Button { vm.applySkin() } label: { Label(readyToFlashCount > 0 ? L("Flash Skins (%@ Cards)", "\(readyToFlashCount)") : L("Flash Skins"), systemImage: "sparkles") }
+                        .faceLiftProminentButton()
+                        .tint(FaceLiftPalette.blue)
+                        .disabled(readyToFlashCount == 0 || vm.isFlashing || vm.isPullingSkins || vm.device?.connected != true)
+                } else if section == .passcode {
+                    Button { showRestorePasscodeConfirmation = true } label: {
+                        Label(L("Restore Default Passcode"), systemImage: "arrow.uturn.backward")
+                    }
+                        .faceLiftSecondaryButton()
+                        .disabled(vm.device?.isUSBConnectedIPhone != true || vm.device?.passcodeCacheVersion == nil || vm.isFlashing || vm.isPullingSkins)
+                    Button { vm.flashPasscodeTheme() } label: { Label(L("Flash Passcode Theme"), systemImage: "lock.shield.fill") }
+                        .faceLiftProminentButton()
+                        .tint(FaceLiftPalette.blue)
+                        .disabled(vm.loadedPasscodeTheme == nil || vm.isFlashing || vm.isPullingSkins || vm.device?.isUSBConnectedIPhone != true)
+                } else if section == .creator {
+                    Button { showRestorePasscodeConfirmation = true } label: {
+                        Label(L("Restore Default Passcode"), systemImage: "arrow.uturn.backward")
+                    }
+                        .faceLiftSecondaryButton()
+                        .disabled(vm.device?.isUSBConnectedIPhone != true || vm.device?.passcodeCacheVersion == nil || vm.isFlashing || vm.isPullingSkins)
+                    Button { vm.flashCreatedTheme() } label: { Label(L("Flash to iPhone"), systemImage: "lock.shield.fill") }
+                        .faceLiftProminentButton()
+                        .tint(FaceLiftPalette.blue)
+                        .disabled(vm.effectiveCreatorKeys.isEmpty || vm.isFlashing || vm.isPullingSkins || vm.device?.isUSBConnectedIPhone != true)
+                }
+            }
+            .padding(.horizontal, 20)
+            .frame(height: 55)
+        }
+        .faceLiftWorkspaceChrome()
+    }
+
+    private var guideSheet: some View {
+        VStack(alignment: .leading, spacing: 15) {
+            HStack {
+                Text(L("FaceLift Guide")).font(.title2.bold())
+                Spacer()
+                Button(L("Close")) { showGuide = false }
+            }
+            instructionRow("1", L("Connect iPhone to your Mac with USB."))
+            instructionRow("2", L("Scan Wallet cards, or add a card hash manually."))
+            instructionRow("3", L("Choose artwork, select cards, then write the skins."))
+            Divider()
+            instructionRow("4", L("Import a passcode theme or create one from images."))
+            instructionRow("5", L("Review the preview and write the theme to iPhone."))
+        }
+        .padding(25)
+        .frame(width: 510)
     }
     
     // MARK: - Floating Chrome (Liquid Glass)
@@ -2533,37 +3552,21 @@ struct ContentView: View {
     
     private var passcodeToolbarView: some View {
         HStack(spacing: 12) {
-            // Mode Switcher: [Apply .passthm] | [Theme Creator]
-            Picker("", selection: $vm.passcodeTabMode) {
-                ForEach(PasscodeTabMode.allCases) { mode in
-                    Text(mode.title).tag(mode)
-                }
-            }
-            .pickerStyle(.segmented)
-            .controlSize(.regular)
-            .frame(width: 250)
-            
             if vm.passcodeTabMode == .applyTheme {
                 Button(action: { openPasscodeThemePicker() }) {
                     Label(L("Choose .passthm File..."), systemImage: "folder.badge.plus")
                 }
                 .faceLiftProminentButton()
-                .tint(.purple)
+                .tint(FaceLiftPalette.blue)
                 .controlSize(.regular)
             } else {
                 Button(action: { openPosterPicker() }) {
                     Label(vm.creatorPosterImage == nil ? L("Choose Poster...") : L("Change Poster..."), systemImage: "photo")
                 }
                 .faceLiftProminentButton()
-                .tint(.purple)
+                .tint(FaceLiftPalette.blue)
                 .controlSize(.regular)
                 
-                Button(action: { openSavePasscodeThemePanel() }) {
-                    Label(L("Export .passthm..."), systemImage: "square.and.arrow.up")
-                }
-                .faceLiftSecondaryButton()
-                .controlSize(.regular)
-                .disabled(vm.effectiveCreatorKeys.isEmpty)
             }
             
             Spacer()
@@ -2622,39 +3625,11 @@ struct ContentView: View {
     // MARK: - Apply Theme Mode
     
     private var passcodeApplyThemeWorkspaceView: some View {
-        HStack(alignment: .top, spacing: 20) {
-            // Left Column: Controls & Actions (width: 320)
-            VStack(alignment: .leading, spacing: 14) {
-                applyThemeControlsCard
-                targetSettingsCard
-                Spacer()
-            }
-            .frame(width: 320)
-            
-            // Right Column: Authentic iPhone Lock Screen Mockup
-            VStack(spacing: 8) {
-                HStack {
-                    Text(L("Lock Screen Keypad Preview"))
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    if vm.loadedPasscodeTheme != nil {
-                        Text(L("Custom Theme Loaded"))
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.green)
-                    }
-                }
-                .padding(.horizontal, 6)
-                
-                phoneMockupContainer {
-                    applyThemeDialerCanvas
-                }
-            }
-            .frame(maxWidth: .infinity)
+        VStack(alignment: .leading, spacing: 14) {
+            applyThemeControlsCard
+            targetSettingsCard
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .onDrop(of: [UTType.fileURL, UTType.data], isTargeted: nil) { providers in
             if let provider = providers.first {
                 provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
@@ -2686,7 +3661,7 @@ struct ContentView: View {
                     HStack(spacing: 12) {
                         Image(systemName: "lock.square.stack.fill")
                             .font(.system(size: 28))
-                            .foregroundColor(.purple)
+                            .foregroundColor(FaceLiftPalette.blue)
                         
                         VStack(alignment: .leading, spacing: 2) {
                             Text(theme.name)
@@ -2697,8 +3672,8 @@ struct ContentView: View {
                                 .font(.system(size: 9, weight: .semibold))
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
-                                .background(Color.purple.opacity(0.15))
-                                .foregroundColor(.purple)
+                                .background(FaceLiftPalette.blue.opacity(0.15))
+                                .foregroundColor(FaceLiftPalette.blue)
                                 .cornerRadius(4)
                         }
                     }
@@ -2712,7 +3687,7 @@ struct ContentView: View {
                             Label(L("Edit in Creator"), systemImage: "pencil.and.outline")
                         }
                         .faceLiftProminentButton()
-                        .tint(.purple)
+                        .tint(FaceLiftPalette.blue)
                         .controlSize(.regular)
                         
                         Button(L("Change...")) {
@@ -2735,7 +3710,7 @@ struct ContentView: View {
                 VStack(spacing: 10) {
                     Image(systemName: "square.and.arrow.down.fill")
                         .font(.system(size: 32))
-                        .foregroundColor(.purple)
+                        .foregroundColor(FaceLiftPalette.blue)
                     
                     Text(L("Drop .passthm file here"))
                         .font(.caption)
@@ -2751,14 +3726,14 @@ struct ContentView: View {
                         openPasscodeThemePicker()
                     }
                     .faceLiftProminentButton()
-                    .tint(.purple)
+                    .tint(FaceLiftPalette.blue)
                     .controlSize(.regular)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 20)
                 .background(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(isTargetedTheme ? Color.purple : Color.purple.opacity(0.35), style: StrokeStyle(lineWidth: 1.5, dash: [6]))
+                        .stroke(isTargetedTheme ? FaceLiftPalette.blue : FaceLiftPalette.blue.opacity(0.35), style: StrokeStyle(lineWidth: 1.5, dash: [6]))
                         .background(faceLiftDropZoneFill(cornerRadius: 12))
                 )
                 .onDrop(of: [UTType.fileURL, UTType.data], isTargeted: $isTargetedTheme) { providers in
@@ -2830,39 +3805,11 @@ struct ContentView: View {
     // MARK: - Theme Creator Mode
     
     private var passcodeThemeCreatorWorkspaceView: some View {
-        HStack(alignment: .top, spacing: 20) {
-            // Left Column: Controls & Actions (width: 320)
-            VStack(alignment: .leading, spacing: 14) {
-                creatorControlsCard
-                targetSettingsCard
-                Spacer()
-            }
-            .frame(width: 320)
-            
-            // Right Column: Authentic iPhone Lock Screen Mockup
-            VStack(spacing: 8) {
-                HStack {
-                    Text(L("Interactive iPhone Lock Screen Preview"))
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.secondary)
-                    Spacer()
-                    if vm.creatorSubMode == .posterSlice && vm.creatorPosterImage != nil {
-                        Text(L("Drag dialer to pan · Use slider to zoom"))
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .padding(.horizontal, 6)
-                
-                phoneMockupContainer {
-                    creatorDialerCanvas
-                }
-            }
-            .frame(maxWidth: .infinity)
+        VStack(alignment: .leading, spacing: 14) {
+            creatorControlsCard
+            targetSettingsCard
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 14)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
     
     private var creatorControlsCard: some View {
@@ -2895,7 +3842,7 @@ struct ContentView: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                        .stroke(Color.purple.opacity(0.4), lineWidth: 1)
+                                        .stroke(FaceLiftPalette.blue.opacity(0.4), lineWidth: 1)
                                 )
                             
                             VStack(alignment: .leading, spacing: 6) {
@@ -2925,7 +3872,7 @@ struct ContentView: View {
                         VStack(spacing: 8) {
                             Image(systemName: "photo.badge.plus")
                                 .font(.system(size: 26))
-                                .foregroundColor(.purple)
+                                .foregroundColor(FaceLiftPalette.blue)
                             
                             Text(L("Drop poster or wallpaper here"))
                                 .font(.caption)
@@ -2935,14 +3882,14 @@ struct ContentView: View {
                                 openPosterPicker()
                             }
                             .faceLiftProminentButton()
-                            .tint(.purple)
+                            .tint(FaceLiftPalette.blue)
                             .controlSize(.regular)
                         }
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
                         .background(
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .stroke(isTargetedPoster ? Color.purple : Color.purple.opacity(0.3), style: StrokeStyle(lineWidth: 1.5, dash: [6]))
+                                .stroke(isTargetedPoster ? FaceLiftPalette.blue : FaceLiftPalette.blue.opacity(0.3), style: StrokeStyle(lineWidth: 1.5, dash: [6]))
                                 .background(faceLiftDropZoneFill(cornerRadius: 10))
                         )
                         .onDrop(of: [UTType.fileURL, UTType.image], isTargeted: $isTargetedPoster) { providers in
@@ -3056,7 +4003,7 @@ struct ContentView: View {
                                 Label(L("Key %@ Framing", selDigit), systemImage: "crop")
                                     .font(.subheadline)
                                     .fontWeight(.bold)
-                                    .foregroundColor(.purple)
+                                    .foregroundColor(FaceLiftPalette.blue)
                                 Spacer()
                                 Button(L("Reset")) {
                                     withAnimation(.spring()) {
@@ -3126,7 +4073,7 @@ struct ContentView: View {
                         .faceLiftPanel(cornerRadius: 10, fallback: Color(NSColor.controlBackgroundColor))
                         .overlay(
                             RoundedRectangle(cornerRadius: 10)
-                                .stroke(Color.purple.opacity(0.35), lineWidth: 1)
+                                .stroke(FaceLiftPalette.blue.opacity(0.35), lineWidth: 1)
                         )
                         
                         Divider()
@@ -3272,9 +4219,9 @@ struct ContentView: View {
                 }
                 
                 Circle()
-                    .stroke(isSelected ? Color.purple : Color.white.opacity(0.3), lineWidth: isSelected ? 2.5 : 1)
+                    .stroke(isSelected ? FaceLiftPalette.blue : Color.white.opacity(0.3), lineWidth: isSelected ? 2.5 : 1)
                     .frame(width: KeypadLayout.buttonDiameter, height: KeypadLayout.buttonDiameter)
-                    .shadow(color: isSelected ? Color.purple.opacity(0.8) : Color.clear, radius: 4)
+                    .shadow(color: isSelected ? FaceLiftPalette.blue.opacity(0.8) : Color.clear, radius: 4)
             }
             
             // Authentic Digits & Letters Typography
@@ -3350,78 +4297,73 @@ struct ContentView: View {
     
     // MARK: - Authentic Phone Lock Screen Mockup Container
     
-    private func phoneMockupContainer<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        ZStack {
-            // Phone Background (Deep Lock Screen Slate / Black)
-            RoundedRectangle(cornerRadius: 36, style: .continuous)
-                .fill(Color(red: 0.08, green: 0.08, blue: 0.10))
-            
-            // Subtle frosted gradient
-            LinearGradient(
-                colors: [Color.white.opacity(0.04), Color.clear, Color.black.opacity(0.3)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 36, style: .continuous))
-            
-            VStack(spacing: 0) {
-                // Lock Screen Header (Height ~64)
-                VStack(spacing: 4) {
-                    Capsule()
-                        .fill(Color.black.opacity(0.6))
-                        .frame(width: 60, height: 18)
-                        .overlay(
-                            Image(systemName: "lock.fill")
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(.white.opacity(0.9))
-                        )
-                    
-                    Text(L("Enter Passcode"))
-                        .font(.system(size: 14, weight: .regular))
-                        .foregroundColor(.white.opacity(0.95))
-                        .padding(.top, 2)
-                    
-                    // 6-Dot Indicator
-                    HStack(spacing: 10) {
-                        ForEach(0..<6, id: \.self) { _ in
-                            Circle()
-                                .stroke(Color.white.opacity(0.7), lineWidth: 1.5)
-                                .frame(width: 9, height: 9)
+    private func phoneMockupContainer<Content: View>(@ViewBuilder content: @escaping () -> Content) -> some View {
+        GeometryReader { proxy in
+            let profile = PhonePreviewProfile.forDevice(vm.device)
+            let baseWidth: CGFloat = 326
+            let baseHeight = baseWidth * profile.aspectRatio
+            let scale = max(0.1, min(1, (proxy.size.width - 12) / baseWidth, (proxy.size.height - 12) / baseHeight))
+
+            ZStack {
+                RoundedRectangle(cornerRadius: profile.cornerRadius)
+                    .fill(Color(red: 0.06, green: 0.06, blue: 0.08))
+                LinearGradient(
+                    colors: [Color.white.opacity(0.04), Color.clear, Color.black.opacity(0.3)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .clipShape(RoundedRectangle(cornerRadius: profile.cornerRadius))
+
+                VStack(spacing: 0) {
+                    HStack {
+                        Text("9:41")
+                        Spacer()
+                        Color.clear.frame(width: profile.front == .homeButton ? 45 : 75, height: 18)
+                        Spacer()
+                        Image(systemName: "wifi")
+                        Image(systemName: "battery.100percent")
+                    }
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 17)
+
+                    VStack(spacing: 5) {
+                        Image(systemName: "lock.fill")
+                            .font(.system(size: 12))
+                        Text(L("Enter Passcode"))
+                            .font(.system(size: 15))
+                        HStack(spacing: 10) {
+                            ForEach(0..<6, id: \.self) { _ in
+                                Circle().stroke(.white.opacity(0.75), lineWidth: 1.4).frame(width: 9, height: 9)
+                            }
                         }
                     }
-                    .padding(.top, 2)
+                    .foregroundStyle(.white)
+                    .padding(.top, 35)
+
+                    Spacer(minLength: 8)
+                    content()
+                        .frame(width: KeypadLayout.gridWidth, height: KeypadLayout.gridHeight)
+                    Spacer(minLength: 8)
+
+                    HStack {
+                        Text(L("Emergency"))
+                        Spacer()
+                        Text(L("Cancel"))
+                    }
+                    .font(.system(size: 13))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .padding(.horizontal, 28)
+                    .padding(.bottom, profile.front == .homeButton ? 52 : 27)
                 }
-                .padding(.top, 12)
-                
-                Spacer(minLength: 2)
-                
-                // The Dialer Grid (Exact 305 x 382.67 pt Canvas)
-                content()
-                    .frame(width: KeypadLayout.gridWidth, height: KeypadLayout.gridHeight)
-                
-                Spacer(minLength: 2)
-                
-                // Lock Screen Footer (Height ~28)
-                HStack {
-                    Text(L("Emergency"))
-                        .font(.system(size: 13, weight: .regular))
-                        .foregroundColor(.white.opacity(0.9))
-                    Spacer()
-                    Text(L("Cancel"))
-                        .font(.system(size: 13, weight: .regular))
-                        .foregroundColor(.white.opacity(0.9))
-                }
-                .padding(.horizontal, 28)
-                .padding(.bottom, 12)
             }
+            .frame(width: baseWidth, height: baseHeight)
+            .modifier(PhoneFrameChrome(profile: profile))
+            .scaleEffect(scale)
+            .frame(width: baseWidth * scale, height: baseHeight * scale)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(width: 326, height: 512)
-        .clipShape(RoundedRectangle(cornerRadius: 36, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 36, style: .continuous)
-                .stroke(Color.white.opacity(0.2), lineWidth: 1.5)
-        )
-        .shadow(color: Color.black.opacity(0.4), radius: 16, x: 0, y: 8)
     }
     
     // MARK: - Passcode Target Configuration Box
@@ -3430,7 +4372,7 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 6) {
                 Image(systemName: "slider.horizontal.3")
-                    .foregroundColor(.purple)
+                    .foregroundColor(FaceLiftPalette.blue)
                     .font(.system(size: 13, weight: .semibold))
                 Text(L("Flash & Language Target"))
                     .font(.caption)
@@ -3493,7 +4435,7 @@ struct ContentView: View {
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .faceLiftPanel(cornerRadius: 10, fallback: Color(NSColor.controlBackgroundColor).opacity(0.6))
-        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.purple.opacity(0.3), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(FaceLiftPalette.blue.opacity(0.3), lineWidth: 1))
     }
     
     private var activityLogView: some View {
@@ -3629,9 +4571,9 @@ struct ContentView: View {
                             .padding(.horizontal, 8)
                         }
                         .faceLiftProminentButton()
-                        .tint(.purple)
+                        .tint(FaceLiftPalette.blue)
                         .controlSize(.regular)
-                        .disabled(vm.effectiveCreatorKeys.isEmpty || vm.isFlashing || vm.isPullingSkins || vm.device?.connected != true)
+                        .disabled(vm.effectiveCreatorKeys.isEmpty || vm.isFlashing || vm.isPullingSkins || vm.device?.isUSBConnectedIPhone != true)
                     } else {
                         Button(action: { vm.flashPasscodeTheme() }) {
                             HStack(spacing: 6) {
@@ -3649,9 +4591,9 @@ struct ContentView: View {
                             .padding(.horizontal, 8)
                         }
                         .faceLiftProminentButton()
-                        .tint(.purple)
+                        .tint(FaceLiftPalette.blue)
                         .controlSize(.regular)
-                        .disabled(vm.loadedPasscodeTheme == nil || vm.isFlashing || vm.isPullingSkins || vm.device?.connected != true)
+                        .disabled(vm.loadedPasscodeTheme == nil || vm.isFlashing || vm.isPullingSkins || vm.device?.isUSBConnectedIPhone != true)
                     }
                 } else {
                     Button(action: { vm.applySkin() }) {
@@ -3749,7 +4691,7 @@ struct ContentView: View {
                 
                 HStack {
                     Image(systemName: "lock.shield.fill")
-                        .foregroundColor(.purple)
+                        .foregroundColor(FaceLiftPalette.blue)
                     Text(L("Passcode Themes:"))
                         .fontWeight(.medium)
                     Text(L(".passthm standard (Cowabunga / Nugget)"))
@@ -3779,17 +4721,32 @@ struct ContentView: View {
             Text(L("Paste one or more card hashes (separated by spaces, commas, or newlines):"))
                 .font(.caption)
                 .foregroundColor(.secondary)
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "info.circle")
+                Text(L("Use a hash previously scanned by FaceLift or saved in a card backup. Adding a hash only saves it to this list; it does not create or verify a card on your iPhone."))
+            }
+            .font(.caption)
+            .foregroundStyle(FaceLiftPalette.muted)
+            .padding(10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(FaceLiftPalette.blue.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
             
             TextEditor(text: $vm.manualHashInput)
                 .font(.system(.body, design: .monospaced))
                 .frame(height: 120)
                 .padding(4)
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.3)))
+            if !manualHashFeedback.isEmpty {
+                Text(manualHashFeedback)
+                    .font(.caption)
+                    .foregroundStyle(FaceLiftPalette.blue)
+            }
             
             HStack {
                 Button(L("Cancel")) {
                     vm.showAddCardSheet = false
                     vm.manualHashInput = ""
+                    manualHashFeedback = ""
                 }
                 .faceLiftSecondaryButton()
                 .controlSize(.regular)
@@ -3797,9 +4754,17 @@ struct ContentView: View {
                 Spacer()
                 
                 Button(L("Add to List")) {
-                    vm.addCardHash(vm.manualHashInput)
-                    vm.showAddCardSheet = false
-                    vm.manualHashInput = ""
+                    let result = vm.addCardHash(vm.manualHashInput)
+                    if result.rejected.isEmpty {
+                        vm.showAddCardSheet = false
+                        vm.manualHashInput = ""
+                        manualHashFeedback = ""
+                    } else {
+                        vm.manualHashInput = result.rejected.joined(separator: "\n")
+                        manualHashFeedback = result.added > 0
+                            ? L("Added %@ card hash(es). Invalid or duplicate entries remain below.", "\(result.added)")
+                            : L("No card hashes were added. Check the format or remove duplicates.")
+                    }
                 }
                 .faceLiftProminentButton()
                 .controlSize(.regular)

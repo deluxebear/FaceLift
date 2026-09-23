@@ -44,6 +44,7 @@ from apply_card_skin import (
     native,
     operation_ok,
     read_card_artwork,
+    clear_passcode_cache,
     write_file,
     write_files_batch,
     build_archive_multi,
@@ -573,6 +574,16 @@ def cmd_flash_passthm(
         return False
 
 
+def cmd_restore_default_passcode(udid: str, version: str) -> bool:
+    try:
+        removed, backup_dir = clear_passcode_cache(udid, version)
+    except (OSError, RuntimeError, ValueError, subprocess.SubprocessError) as exc:
+        print(json.dumps({"ok": False, "error": str(exc)}))
+        return False
+    print(json.dumps({"ok": True, "removed": removed, "backup": backup_dir}))
+    return True
+
+
 def main():
     if len(sys.argv) < 2:
         print(json.dumps({"error": "No command provided"}))
@@ -601,6 +612,9 @@ def main():
         t_lang = sys.argv[5] if len(sys.argv) > 5 else "all"
         t_bold = sys.argv[6] if len(sys.argv) > 6 else "both"
         if not cmd_flash_passthm(sys.argv[2], sys.argv[3], t_ver, t_lang, t_bold):
+            sys.exit(1)
+    elif norm_cmd == "restore-default-passcode" and len(sys.argv) > 3:
+        if not cmd_restore_default_passcode(sys.argv[2], sys.argv[3]):
             sys.exit(1)
     else:
         print(json.dumps({"error": f"Unknown command: {cmd}"}))

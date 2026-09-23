@@ -620,6 +620,92 @@ static NSDictionary *ListStagedLink(AFCConnectionRef afc, NSString *path) {
     return @{ @"ok": @YES, @"entries": names };
 }
 
+// AirTraffic moves the TelephonyUI cache directory into Media before this
+// backup. AFC cannot traverse the symlink used for writes, but it can read the
+// relocated directory directly. Never discard that directory before all of
+// its entries have been copied to the Mac.
+static BOOL SafeCacheLeaf(NSString *name) {
+    return name.length && name.length <= 255 &&
+        ![name isEqual:@"."] && ![name isEqual:@".."] &&
+        [name rangeOfString:@"/"].location == NSNotFound &&
+        [name rangeOfString:@"\\"].location == NSNotFound &&
+        [name rangeOfCharacterFromSet:NSCharacterSet.controlCharacterSet].location == NSNotFound;
+}
+
+static NSString *BackupCacheTree(AFCConnectionRef afc, NSString *remote,
+                                 NSString *local, NSUInteger depth,
+                                 NSUInteger *fileCount,
+                                 unsigned long long *totalBytes) {
+    if (depth > 16 || ![AFCFileKind(afc, remote) isEqual:@"S_IFDIR"])
+        return @"cache directory";
+    NSError *error = nil;
+    if (![NSFileManager.defaultManager createDirectoryAtPath:local
+                                 withIntermediateDirectories:YES
+                                                  attributes:nil error:&error])
+        return @"backup directory";
+
+    AFCDirectoryRef directory = NULL;
+    if (AFCDirectoryOpen(afc, remote.fileSystemRepresentation, &directory) != 0 ||
+        !directory) return @"open cache directory";
+    NSMutableArray<NSString *> *entries = NSMutableArray.array;
+    BOOL finished = NO;
+    BOOL readOK = YES;
+    for (NSUInteger index = 0; index <= 8192; index++) {
+        char *raw = NULL;
+        int status = AFCDirectoryRead(afc, directory, &raw);
+        if (status != 0) { readOK = NO; break; }
+        if (!raw) { finished = YES; break; }
+        NSString *name = [NSString stringWithUTF8String:raw];
+        if ([name isEqual:@"."] || [name isEqual:@".."]) continue;
+        if (!SafeCacheLeaf(name)) { readOK = NO; break; }
+        [entries addObject:name];
+    }
+    BOOL closeOK = AFCDirectoryClose(afc, directory) == 0;
+    if (!readOK || !finished || !closeOK) return @"read cache directory";
+
+    for (NSString *name in entries) {
+        NSString *source = [remote stringByAppendingPathComponent:name];
+        NSString *destination = [local stringByAppendingPathComponent:name];
+        NSString *kind = AFCFileKind(afc, source);
+        if ([kind isEqual:@"S_IFDIR"]) {
+            NSString *failure = BackupCacheTree(
+                afc, source, destination, depth + 1, fileCount, totalBytes);
+            if (failure) return failure;
+        } else if ([kind isEqual:@"S_IFREG"]) {
+            NSData *data = AFCReadFileWithLimit(afc, source, 32 * 1024 * 1024);
+            if (!data || *fileCount >= 8192 ||
+                *totalBytes + data.length > 2ULL * 1024 * 1024 * 1024)
+                return @"read cache file";
+            if (![data writeToFile:destination atomically:YES])
+                return @"write backup file";
+            (*fileCount)++;
+            *totalBytes += data.length;
+        } else {
+            return @"unexpected cache entry";
+        }
+    }
+    return nil;
+}
+
+static NSDictionary *BackupPasscodeCache(AFCConnectionRef afc,
+                                         NSString *recovered,
+                                         NSString *backupRoot) {
+    if (!IsRecoveredFile(recovered))
+        return @{ @"ok": @NO, @"reason": @"path" };
+    NSString *allowedRoot = [[NSHomeDirectory() stringByAppendingPathComponent:
+        @"Library/Application Support/FaceLift/PasscodeCacheBackups"]
+        stringByStandardizingPath];
+    NSString *destination = backupRoot.stringByStandardizingPath;
+    if (![destination hasPrefix:[allowedRoot stringByAppendingString:@"/"]])
+        return @{ @"ok": @NO, @"reason": @"backup path" };
+    NSUInteger files = 0;
+    unsigned long long bytes = 0;
+    NSString *failure = BackupCacheTree(afc, recovered, destination, 0,
+                                        &files, &bytes);
+    if (failure) return @{ @"ok": @NO, @"reason": failure };
+    return @{ @"ok": @YES, @"backedUp": @(files), @"bytes": @(bytes) };
+}
+
 static NSDictionary *StatMedia(AFCConnectionRef afc, NSString *path) {
     if (!IsLinkRoot(path) && !IsLinkFile(path) && !IsRecoveredFile(path))
         return @{ @"ok": @NO, @"reason": @"path" };
@@ -1202,7 +1288,7 @@ static NSDictionary *FinishWrite(DeviceSession *session, NSArray<NSString *> *ar
 
     if (!RemoveIfPresent(session->afc, linkDestination))
         [failures addObject:@"relocated link"];
-    if (!RemoveIfPresent(session->afc, recovered))
+    if (!RemoveGeneratedTree(session->afc, recovered, 0))
         [failures addObject:@"recovered file"];
     if (!RemoveGeneratedTree(session->afc, source, 0))
         [failures addObject:@"StreamingZip tree"];
@@ -1311,6 +1397,11 @@ int main(int argc, const char *argv[]) {
             } else if ([command isEqual:@"list-link"] && argc == 4) {
                 operation = ListStagedLink(
                     session.afc, [NSString stringWithUTF8String:argv[3]]);
+            } else if ([command isEqual:@"backup-passcode-cache"] && argc == 5) {
+                operation = BackupPasscodeCache(
+                    session.afc,
+                    [NSString stringWithUTF8String:argv[3]],
+                    [NSString stringWithUTF8String:argv[4]]);
             } else if ([command isEqual:@"stat-media"] && argc == 4) {
                 operation = StatMedia(
                     session.afc, [NSString stringWithUTF8String:argv[3]]);

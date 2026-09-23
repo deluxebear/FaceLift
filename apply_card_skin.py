@@ -392,6 +392,150 @@ def write_files_batch(
     return False
 
 
+PASSCODE_CACHE_VERSIONS = frozenset(("TelephonyUI-8", "TelephonyUI-9", "TelephonyUI-10"))
+
+
+def clear_passcode_cache(udid: str, version: str) -> tuple[int, str]:
+    """Back up and remove one versioned iPhone passcode cache directory."""
+    if version not in PASSCODE_CACHE_VERSIONS:
+        raise ValueError("Unsupported TelephonyUI cache version")
+    if not re.fullmatch(r"[A-Za-z0-9-]{16,80}", udid):
+        raise ValueError("Invalid device identifier")
+
+    target = f"/var/mobile/Library/Caches/{version}"
+    token = secrets.token_hex(10)
+    source = f"{SOURCE_PREFIX}{token}"
+    link_destination = f"{LINK_PREFIX}{token}"
+    recovered = f"{RECOVERED_PREFIX}{token}"
+    rollback_link = f"{LINK_PREFIX}{secrets.token_hex(10)}"
+    preserve_name = f"{RECOVERED_PREFIX}{secrets.token_hex(10)}"
+    link_identifier = f"../../{source}/p0/p1/p2/link"
+    target_identifier = f"../../../../../{target.lstrip('/')}"
+    moved_link_identifier = f"../../{link_destination}"
+    moved_cache_identifier = f"../../{recovered}"
+    backup_dir = (
+        Path.home() / "Library" / "Application Support" / "FaceLift"
+        / "PasscodeCacheBackups" / udid / version / token
+    )
+
+    def remote_kind(name: str) -> str | None:
+        result = native("stat-media", udid, name)
+        if operation_ok(result):
+            return result["operation"].get("st_ifmt")
+        return None
+
+    def finish(link_name: str, recovered_name: str, snapshot_root: Path) -> dict:
+        return run_json(
+            [
+                os.fspath(DEVICE_HELPER), "finish-write", udid, source,
+                link_name, recovered_name, os.fspath(snapshot_root),
+            ],
+            timeout=600,
+        )
+
+    with tempfile.TemporaryDirectory(prefix="airlift-passcode-reset-") as temporary:
+        work = Path(temporary)
+        archive_path = work / "payload.zip"
+        books_path = work / "Books.plist"
+        snapshot_root = work / "books-snapshot"
+        snapshot_root.mkdir()
+        archive_path.write_bytes(build_archive("/var/mobile/Library/Caches", b"facelift-passcode-reset"))
+        # Keep both relocated assets in the manifest so a rollback sync can
+        # move the cache back without AirTraffic discarding them first.
+        books_path.write_bytes(build_books([
+            link_identifier, target_identifier,
+            moved_link_identifier, moved_cache_identifier,
+        ]))
+
+        snapshot = native("snapshot-books", udid, os.fspath(snapshot_root))
+        if not operation_ok(snapshot):
+            raise RuntimeError("Could not save the Books sync state")
+
+        failure: Exception | None = None
+        backup_complete = False
+        rollback_attempted = False
+        backed_up = 0
+        try:
+            stage = native(
+                "stage", udid, source, link_destination, recovered,
+                os.fspath(archive_path), os.fspath(books_path), os.fspath(snapshot_root),
+            )
+            if not operation_ok(stage):
+                raise RuntimeError("Could not stage the passcode cache link")
+
+            moved = run_json(
+                [
+                    os.fspath(AIRTRAFFIC_HOST), udid,
+                    link_identifier, link_destination,
+                    target_identifier, recovered,
+                ],
+                timeout=60,
+            )
+            if moved.get("exitCode") != 0 or not moved.get("ok"):
+                reason = moved.get("error") or f"exit code {moved.get('exitCode')}"
+                raise RuntimeError(f"Could not move the passcode cache: {reason}")
+            if remote_kind(recovered) != "S_IFDIR":
+                raise RuntimeError("Passcode cache was not moved into the readable area")
+
+            backup = run_json(
+                [
+                    os.fspath(DEVICE_HELPER), "backup-passcode-cache", udid,
+                    recovered, os.fspath(backup_dir),
+                ],
+                timeout=600,
+            )
+            if not operation_ok(backup):
+                reason = backup.get("operation", {}).get("reason", "backup failed")
+                raise RuntimeError(f"Could not back up the passcode cache: {reason}")
+            backed_up = int(backup["operation"].get("backedUp", 0))
+            backup_complete = True
+        except Exception as exc:
+            failure = exc
+            try:
+                relocated_cache_present = remote_kind(recovered) == "S_IFDIR"
+            except Exception as probe_error:
+                relocated_cache_present = False
+                failure = RuntimeError(f"{exc}; could not inspect relocated cache: {probe_error}")
+            if relocated_cache_present:
+                rollback_attempted = True
+                try:
+                    rollback = run_json(
+                        [
+                            os.fspath(AIRTRAFFIC_HOST), udid,
+                            moved_link_identifier, rollback_link,
+                            moved_cache_identifier, f"{rollback_link}/{version}",
+                        ],
+                        timeout=60,
+                    )
+                    if rollback.get("exitCode") != 0 or not rollback.get("ok") or remote_kind(recovered) == "S_IFDIR":
+                        failure = RuntimeError(f"{exc}; cache remains on iPhone at /var/mobile/Media/{recovered}")
+                except Exception as rollback_error:
+                    failure = RuntimeError(f"{exc}; rollback failed: {rollback_error}; cache remains on iPhone at /var/mobile/Media/{recovered}")
+        finally:
+            # Never remove an unbacked cache directory. A failed rollback
+            # leaves it in Media for manual recovery rather than discarding it.
+            discard = recovered if backup_complete else preserve_name
+            cleanup_errors = []
+            links = [link_destination, rollback_link] if rollback_attempted else [link_destination]
+            for link_name in links:
+                try:
+                    result = finish(link_name, discard, snapshot_root)
+                    if not operation_ok(result):
+                        cleanup_errors.append(str(result.get("operation", {}).get("failures", "cleanup failed")))
+                except Exception as cleanup_error:
+                    cleanup_errors.append(str(cleanup_error))
+            if cleanup_errors:
+                failure = RuntimeError(
+                    f"{failure or 'Passcode cache cleanup failed'}; "
+                    f"sync cleanup: {', '.join(cleanup_errors)}"
+                )
+
+        if failure:
+            suffix = f"; Mac backup: {backup_dir}" if backup_complete else ""
+            raise RuntimeError(f"{failure}{suffix}")
+        return backed_up, os.fspath(backup_dir)
+
+
 def pass_asset_id(absolute: str) -> str:
     """Books asset id for a file under the Cards directory."""
     prefix = "/var/mobile/Library/Passes/Cards/"
