@@ -67,19 +67,19 @@ struct WalletTileView: View {
             HStack(alignment: .top, spacing: 8) {
                 Button { card.isSelected.toggle() } label: {
                     Image(systemName: card.isSelected ? "checkmark.square.fill" : "square")
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundStyle(card.isSelected ? FaceLiftPalette.blue : FaceLiftPalette.muted)
+                        .font(.title.weight(.medium))
+                        .foregroundStyle(card.isSelected ? Color.brand : Color.secondary)
                 }
                 .buttonStyle(.plain)
                 .help(L("Include in flash"))
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(L("Card #%@", String(index + 1)))
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(FaceLiftPalette.ink)
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(Color.primary)
                     Text(card.customImage == nil ? L("Artwork not set") : L("Artwork ready"))
                         .font(.caption)
-                        .foregroundStyle(FaceLiftPalette.muted)
+                        .foregroundStyle(Color.secondary)
                 }
                 Spacer(minLength: 0)
                 Menu {
@@ -93,10 +93,10 @@ struct WalletTileView: View {
                     Button(L("Remove from list"), role: .destructive, action: onDelete)
                 } label: {
                     Image(systemName: "ellipsis")
-                        .font(.system(size: 15, weight: .bold))
+                        .font(.title3.weight(.bold))
                         .frame(width: 30, height: 30)
                         .background(Color.white, in: RoundedRectangle(cornerRadius: 9))
-                        .overlay(RoundedRectangle(cornerRadius: 9).stroke(FaceLiftPalette.line))
+                        .overlay(RoundedRectangle(cornerRadius: 9).stroke(Color(nsColor: .separatorColor)))
                 }
                 .menuStyle(.borderlessButton)
                 .frame(width: 34)
@@ -104,8 +104,8 @@ struct WalletTileView: View {
         }
         .padding(12)
         .faceLiftWorkspacePanel(cornerRadius: 17)
-        .overlay(RoundedRectangle(cornerRadius: 17).stroke(card.isSelected ? FaceLiftPalette.blue.opacity(0.72) : FaceLiftPalette.line, lineWidth: card.isSelected ? 1.5 : 1))
-        .shadow(color: FaceLiftPalette.blue.opacity(0.06), radius: 12, y: 5)
+        .overlay(RoundedRectangle(cornerRadius: 17).stroke(card.isSelected ? Color.brand.opacity(0.72) : Color(nsColor: .separatorColor), lineWidth: card.isSelected ? 1.5 : 1))
+        .shadow(color: Color.brand.opacity(0.06), radius: 12, y: 5)
     }
 }
 
@@ -168,20 +168,20 @@ extension ContentView {
                 HStack(spacing: 12) {
                     Image(systemName: "sparkles.rectangle.stack")
                         .font(.title2)
-                        .foregroundStyle(FaceLiftPalette.blue)
+                        .foregroundStyle(Color.brand)
                     VStack(alignment: .leading, spacing: 4) {
                         Text(L("Make a passcode theme"))
-                            .font(.system(size: 14, weight: .bold))
+                            .font(.title3.weight(.bold))
                         Text(L("Turn a poster into a keypad, or design each key."))
                             .font(.caption)
-                            .foregroundStyle(FaceLiftPalette.muted)
+                            .foregroundStyle(Color.secondary)
                     }
                     Spacer()
                     Button(L("Open Creator")) { navigate(.creator) }
                         .faceLiftSecondaryButton()
                 }
                 .padding(17)
-                .faceLiftWorkspacePanel(cornerRadius: 13, tint: FaceLiftPalette.blue.opacity(0.09))
+                .faceLiftWorkspacePanel(cornerRadius: 13, tint: Color.brand.opacity(0.09))
                 }
                 .padding(.horizontal, 25)
                 .padding(.top, 15)
@@ -205,8 +205,8 @@ extension ContentView {
         VStack(spacing: 0) {
             HStack {
                 Text(L("Live Preview"))
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(FaceLiftPalette.ink)
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(Color.primary)
                 Spacer()
             }
             .padding(.bottom, 13)
@@ -216,7 +216,7 @@ extension ContentView {
                 ForEach(0..<min(vm.cards.count, 5), id: \.self) { index in
                     Button { previewCardIndex = index } label: {
                         Circle()
-                            .fill(index == previewCardIndex ? FaceLiftPalette.blue : FaceLiftPalette.muted.opacity(0.35))
+                            .fill(index == previewCardIndex ? Color.brand : Color.secondary.opacity(0.35))
                             .frame(width: 8, height: 8)
                     }
                     .buttonStyle(.plain)
@@ -310,7 +310,7 @@ extension ContentView {
     var scanningNoticeBanner: some View {
         HStack(spacing: 12) {
             Image(systemName: "iphone.radiowaves.left.and.right")
-                .font(.system(size: 20))
+                .font(.title)
                 .foregroundColor(.blue)
             
             VStack(alignment: .leading, spacing: 2) {

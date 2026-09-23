@@ -23,14 +23,6 @@ func faceLiftGlass(_ tint: Color?, _ interactive: Bool) -> Glass {
     return glass
 }
 
-@ViewBuilder
-func faceLiftDivider() -> some View {
-    if #available(macOS 26.0, *) {
-        EmptyView()
-    } else {
-        Divider()
-    }
-}
 
 extension View {
     /// Floating glass panel (cards, side panels, pills). Falls back to a
@@ -79,26 +71,7 @@ extension View {
         }
     }
 
-    /// Full-width chrome bar. On macOS 26+ the bar is Liquid Glass, so window
-    /// content scrolling underneath shows through as a live blur.
-    @ViewBuilder
-    func faceLiftChrome() -> some View {
-        if #available(macOS 26.0, *) {
-            self.glassEffect(.regular, in: Rectangle())
-        } else {
-            self
-        }
-    }
 
-    /// Opaque per-section background, only on pre-Liquid-Glass systems.
-    @ViewBuilder
-    func faceLiftChromeSection(_ color: NSColor) -> some View {
-        if #available(macOS 26.0, *) {
-            self
-        } else {
-            self.background(Color(color))
-        }
-    }
 
     /// Prominent call-to-action button (glass prominent on macOS 26+).
     @ViewBuilder
@@ -130,15 +103,6 @@ extension View {
         }
     }
 
-    /// Activity console backdrop: glass on macOS 26+, opaque text background before.
-    @ViewBuilder
-    func faceLiftLogBackground() -> some View {
-        if #available(macOS 26.0, *) {
-            self.glassEffect(.regular, in: Rectangle())
-        } else {
-            self.background(Color(NSColor.textBackgroundColor))
-        }
-    }
 
     /// Live-scanner banner: tinted glass band on macOS 26+.
     @ViewBuilder
@@ -176,14 +140,6 @@ extension View {
         }
     }
 
-    @ViewBuilder
-    func faceLiftWorkspaceChrome() -> some View {
-        if #available(macOS 26.0, *) {
-            self.glassEffect(.regular, in: Rectangle())
-        } else {
-            self.background(.regularMaterial)
-        }
-    }
 }
 
 /// Translucent keypad key surface: real interactive Liquid Glass on macOS 26+,
@@ -202,13 +158,6 @@ struct KeypadKeySurface: View {
     }
 }
 
-enum FaceLiftPalette {
-    static let ink = Color(red: 0.08, green: 0.13, blue: 0.24)
-    static let muted = Color(red: 0.40, green: 0.47, blue: 0.60)
-    static let blue = Color(red: 0.08, green: 0.40, blue: 0.95)
-    static let line = Color(red: 0.82, green: 0.87, blue: 0.96)
-    static let surface = Color.white.opacity(0.88)
-}
 
 // MARK: - Brand color
 

@@ -6,12 +6,12 @@ extension ContentView {
     func instructionRow(_ number: String, _ text: String) -> some View {
         HStack(spacing: 12) {
             Text(number)
-                .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(FaceLiftPalette.blue)
+                .font(.body.weight(.bold))
+                .foregroundStyle(Color.brand)
                 .frame(width: 27, height: 27)
-                .background(Color(red: 0.90, green: 0.94, blue: 1), in: Circle())
+                .background(Color.brand.opacity(0.12), in: Circle())
             Text(text)
-                .foregroundStyle(FaceLiftPalette.ink)
+                .foregroundStyle(Color.primary)
         }
     }
 }
@@ -106,7 +106,7 @@ extension ContentView {
                 
                 HStack {
                     Image(systemName: "lock.shield.fill")
-                        .foregroundColor(FaceLiftPalette.blue)
+                        .foregroundColor(Color.brand)
                     Text(L("Passcode Themes:"))
                         .fontWeight(.medium)
                     Text(L(".passthm standard (Cowabunga / Nugget)"))
@@ -141,10 +141,10 @@ extension ContentView {
                 Text(L("Use a hash previously scanned by FaceLift or saved in a card backup. Adding a hash only saves it to this list; it does not create or verify a card on your iPhone."))
             }
             .font(.caption)
-            .foregroundStyle(FaceLiftPalette.muted)
+            .foregroundStyle(Color.secondary)
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(FaceLiftPalette.blue.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
+            .background(Color.brand.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
             
             TextEditor(text: $vm.manualHashInput)
                 .font(.system(.body, design: .monospaced))
@@ -154,7 +154,7 @@ extension ContentView {
             if !manualHashFeedback.isEmpty {
                 Text(manualHashFeedback)
                     .font(.caption)
-                    .foregroundStyle(FaceLiftPalette.blue)
+                    .foregroundStyle(Color.brand)
             }
             
             HStack {

@@ -7,14 +7,14 @@ extension ContentView {
         VStack(spacing: 0) {
             HStack {
                 Text(L("Live Preview"))
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(FaceLiftPalette.ink)
+                    .font(.title2.weight(.bold))
+                    .foregroundStyle(Color.primary)
                 Spacer()
             }
             .padding(.bottom, 13)
             Text(vm.device?.connected == true ? (vm.device?.name ?? "iPhone") : L("iPhone Preview"))
                 .font(.caption)
-                .foregroundStyle(FaceLiftPalette.muted)
+                .foregroundStyle(Color.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.top, 11)
 
@@ -106,8 +106,8 @@ extension ContentView {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(spacing: 12) {
                         Image(systemName: "lock.square.stack.fill")
-                            .font(.system(size: 28))
-                            .foregroundColor(FaceLiftPalette.blue)
+                            .font(.largeTitle)
+                            .foregroundColor(Color.brand)
                         
                         VStack(alignment: .leading, spacing: 2) {
                             Text(theme.name)
@@ -115,11 +115,11 @@ extension ContentView {
                                 .fontWeight(.bold)
                             
                             Text(theme.detectedVersion)
-                                .font(.system(size: 9, weight: .semibold))
+                                .font(.caption.weight(.semibold))
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
-                                .background(FaceLiftPalette.blue.opacity(0.15))
-                                .foregroundColor(FaceLiftPalette.blue)
+                                .background(Color.brand.opacity(0.15))
+                                .foregroundColor(Color.brand)
                                 .cornerRadius(4)
                         }
                     }
@@ -133,7 +133,7 @@ extension ContentView {
                             Label(L("Edit in Creator"), systemImage: "pencil.and.outline")
                         }
                         .faceLiftProminentButton()
-                        .tint(FaceLiftPalette.blue)
+                        .tint(Color.brand)
                         .controlSize(.regular)
                         
                         Button(L("Change...")) {
@@ -156,7 +156,7 @@ extension ContentView {
                 VStack(spacing: 10) {
                     Image(systemName: "square.and.arrow.down.fill")
                         .font(.system(size: 32))
-                        .foregroundColor(FaceLiftPalette.blue)
+                        .foregroundColor(Color.brand)
                     
                     Text(L("Drop .passthm file here"))
                         .font(.caption)
@@ -172,14 +172,14 @@ extension ContentView {
                         openPasscodeThemePicker()
                     }
                     .faceLiftProminentButton()
-                    .tint(FaceLiftPalette.blue)
+                    .tint(Color.brand)
                     .controlSize(.regular)
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 20)
                 .background(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(isTargetedTheme ? FaceLiftPalette.blue : FaceLiftPalette.blue.opacity(0.35), style: StrokeStyle(lineWidth: 1.5, dash: [6]))
+                        .stroke(isTargetedTheme ? Color.brand : Color.brand.opacity(0.35), style: StrokeStyle(lineWidth: 1.5, dash: [6]))
                         .background(faceLiftDropZoneFill(cornerRadius: 12))
                 )
                 .onDrop(of: [UTType.fileURL, UTType.data], isTargeted: $isTargetedTheme) { providers in
@@ -288,7 +288,7 @@ extension ContentView {
                                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                        .stroke(FaceLiftPalette.blue.opacity(0.4), lineWidth: 1)
+                                        .stroke(Color.brand.opacity(0.4), lineWidth: 1)
                                 )
                             
                             VStack(alignment: .leading, spacing: 6) {
@@ -323,8 +323,8 @@ extension ContentView {
                     } else {
                         VStack(spacing: 8) {
                             Image(systemName: "photo.badge.plus")
-                                .font(.system(size: 26))
-                                .foregroundColor(FaceLiftPalette.blue)
+                                .font(.largeTitle)
+                                .foregroundColor(Color.brand)
                             
                             Text(L("Drop poster or wallpaper here"))
                                 .font(.caption)
@@ -334,7 +334,7 @@ extension ContentView {
                                 openPosterPicker()
                             }
                             .faceLiftProminentButton()
-                            .tint(FaceLiftPalette.blue)
+                            .tint(Color.brand)
                             .controlSize(.regular)
 
                             Button(L("Use Chinese Numeral Example")) {
@@ -347,7 +347,7 @@ extension ContentView {
                         .padding(.vertical, 16)
                         .background(
                             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                .stroke(isTargetedPoster ? FaceLiftPalette.blue : FaceLiftPalette.blue.opacity(0.3), style: StrokeStyle(lineWidth: 1.5, dash: [6]))
+                                .stroke(isTargetedPoster ? Color.brand : Color.brand.opacity(0.3), style: StrokeStyle(lineWidth: 1.5, dash: [6]))
                                 .background(faceLiftDropZoneFill(cornerRadius: 10))
                         )
                         .onDrop(of: [UTType.fileURL, UTType.image], isTargeted: $isTargetedPoster) { providers in
@@ -423,7 +423,7 @@ extension ContentView {
                             .font(.caption)
                         
                         Text(String(format: "%.1fx", vm.creatorPosterZoom))
-                            .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                            .font(.system(.subheadline, design: .monospaced).weight(.semibold))
                             .frame(width: 32, alignment: .trailing)
                     }
                     
@@ -461,7 +461,7 @@ extension ContentView {
                                 Label(L("Key %@ Framing", selDigit), systemImage: "crop")
                                     .font(.subheadline)
                                     .fontWeight(.bold)
-                                    .foregroundColor(FaceLiftPalette.blue)
+                                    .foregroundColor(Color.brand)
                                 Spacer()
                                 Button(L("Reset")) {
                                     withAnimation(.spring()) {
@@ -499,7 +499,7 @@ extension ContentView {
                                     .font(.caption)
                                 
                                 Text(String(format: "%.1fx", zoomVal))
-                                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                                    .font(.system(.subheadline, design: .monospaced).weight(.semibold))
                                     .frame(width: 32, alignment: .trailing)
                             }
                             
@@ -531,7 +531,7 @@ extension ContentView {
                         .faceLiftPanel(cornerRadius: 10, fallback: Color(NSColor.controlBackgroundColor))
                         .overlay(
                             RoundedRectangle(cornerRadius: 10)
-                                .stroke(FaceLiftPalette.blue.opacity(0.35), lineWidth: 1)
+                                .stroke(Color.brand.opacity(0.35), lineWidth: 1)
                         )
                         
                         Divider()
@@ -677,9 +677,9 @@ extension ContentView {
                 }
                 
                 Circle()
-                    .stroke(isSelected ? FaceLiftPalette.blue : Color.white.opacity(0.3), lineWidth: isSelected ? 2.5 : 1)
+                    .stroke(isSelected ? Color.brand : Color.white.opacity(0.3), lineWidth: isSelected ? 2.5 : 1)
                     .frame(width: KeypadLayout.buttonDiameter, height: KeypadLayout.buttonDiameter)
-                    .shadow(color: isSelected ? FaceLiftPalette.blue.opacity(0.8) : Color.clear, radius: 4)
+                    .shadow(color: isSelected ? Color.brand.opacity(0.8) : Color.clear, radius: 4)
             }
             
             // Authentic Digits & Letters Typography
@@ -832,8 +832,8 @@ extension ContentView {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 6) {
                 Image(systemName: "slider.horizontal.3")
-                    .foregroundColor(FaceLiftPalette.blue)
-                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(Color.brand)
+                    .font(.body.weight(.semibold))
                 Text(L("Flash & Language Target"))
                     .font(.caption)
                     .fontWeight(.semibold)
@@ -844,7 +844,7 @@ extension ContentView {
             // 1. Language Target Selector
             VStack(alignment: .leading, spacing: 4) {
                 Text(L("System Language:"))
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.caption.weight(.medium))
                     .foregroundColor(.secondary)
                 
                 Picker("", selection: $vm.passcodeLanguageTarget) {
@@ -859,7 +859,7 @@ extension ContentView {
             // 2. Bold / Font Weight Selector
             VStack(alignment: .leading, spacing: 4) {
                 Text(L("Font Weight / Style:"))
-                    .font(.system(size: 10, weight: .medium))
+                    .font(.caption.weight(.medium))
                     .foregroundColor(.secondary)
                 
                 Picker("", selection: $vm.passcodeBoldTarget) {
@@ -874,18 +874,18 @@ extension ContentView {
             // Helpful Speed / Info Hint
             HStack(alignment: .top, spacing: 6) {
                 Image(systemName: vm.passcodeLanguageTarget == .all && vm.passcodeBoldTarget == .both ? "globe" : "bolt.fill")
-                    .font(.system(size: 10))
+                    .font(.caption)
                     .foregroundColor(vm.passcodeLanguageTarget == .all && vm.passcodeBoldTarget == .both ? .secondary : .orange)
                     .padding(.top, 1)
                 
                 if vm.passcodeLanguageTarget == .all && vm.passcodeBoldTarget == .both {
                     Text(L("Universal mode flashes ~600 files for all languages & Bold text. Selecting a specific language (e.g. Ukrainian) speeds up flashing dramatically."))
-                        .font(.system(size: 9))
+                        .font(.caption)
                         .foregroundColor(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 } else {
                     Text(L("Fast mode selected: only targets %@ with %@.", vm.passcodeLanguageTarget.title, vm.passcodeBoldTarget.title))
-                        .font(.system(size: 9))
+                        .font(.caption)
                         .foregroundColor(.primary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -895,7 +895,7 @@ extension ContentView {
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)
         .faceLiftPanel(cornerRadius: 10, fallback: Color(NSColor.controlBackgroundColor).opacity(0.6))
-        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(FaceLiftPalette.blue.opacity(0.3), lineWidth: 1))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(Color.brand.opacity(0.3), lineWidth: 1))
     }
     
 }
