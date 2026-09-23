@@ -99,6 +99,7 @@ extension ContentView {
         }
         .pickerStyle(.menu)
         .fixedSize()
+        .disabled(vm.device?.isUSBConnectedIPhone == true && vm.device?.passcodeCacheVersion != nil)
         .help(L("Target:"))
     }
 

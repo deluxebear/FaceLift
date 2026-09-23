@@ -71,6 +71,11 @@ struct ContentView: View {
         .sheet(isPresented: $window.showGuide) { guideSheet }
         .sheet(isPresented: $vm.showAddCardSheet) { addCardSheet }
         .onChange(of: window.section) { _, destination in syncViewModel(to: destination) }
+        .onChange(of: vm.passcodeTabMode) { _, mode in
+            // Programmatic mode changes (e.g. "Edit in Creator") move the sidebar too.
+            guard window.section == .passcode || window.section == .creator else { return }
+            window.section = mode == .applyTheme ? .passcode : .creator
+        }
         .onChange(of: window.pendingAction) { _, action in
             guard let action else { return }
             window.pendingAction = nil
