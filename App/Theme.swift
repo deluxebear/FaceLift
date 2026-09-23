@@ -23,7 +23,6 @@ func faceLiftGlass(_ tint: Color?, _ interactive: Bool) -> Glass {
     return glass
 }
 
-
 extension View {
     /// Floating glass panel (cards, side panels, pills). Falls back to a
     /// translucent control-background fill on older systems.
@@ -71,8 +70,6 @@ extension View {
         }
     }
 
-
-
     /// Prominent call-to-action button (glass prominent on macOS 26+).
     @ViewBuilder
     func faceLiftProminentButton() -> some View {
@@ -103,14 +100,13 @@ extension View {
         }
     }
 
-
     /// Live-scanner banner: tinted glass band on macOS 26+.
     @ViewBuilder
     func faceLiftBannerSurface() -> some View {
         if #available(macOS 26.0, *) {
-            self.glassEffect(Glass.regular.tint(Color.blue.opacity(0.16)), in: Rectangle())
+            self.glassEffect(Glass.regular.tint(Color.brand.opacity(0.16)), in: Rectangle())
         } else {
-            self.background(Color.blue.opacity(0.1))
+            self.background(Color.brand.opacity(0.1))
         }
     }
 
@@ -157,7 +153,6 @@ struct KeypadKeySurface: View {
         }
     }
 }
-
 
 // MARK: - Brand color
 

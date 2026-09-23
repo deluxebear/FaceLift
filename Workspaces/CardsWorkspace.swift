@@ -95,7 +95,7 @@ struct WalletTileView: View {
                     Image(systemName: "ellipsis")
                         .font(.title3.weight(.bold))
                         .frame(width: 30, height: 30)
-                        .background(Color.white, in: RoundedRectangle(cornerRadius: 9))
+                        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 9))
                         .overlay(RoundedRectangle(cornerRadius: 9).stroke(Color(nsColor: .separatorColor)))
                 }
                 .menuStyle(.borderlessButton)
@@ -311,13 +311,13 @@ extension ContentView {
         HStack(spacing: 12) {
             Image(systemName: "iphone.radiowaves.left.and.right")
                 .font(.title)
-                .foregroundColor(.blue)
+                .foregroundStyle(Color.brand)
             
             VStack(alignment: .leading, spacing: 2) {
                 Text(L("Live Scanner Active"))
                     .font(.caption)
                     .fontWeight(.bold)
-                    .foregroundColor(.blue)
+                    .foregroundStyle(Color.brand)
                 Text(L("Double-click Side button (Apple Pay), pass Face ID, then tap your card."))
                     .font(.caption2)
                     .foregroundColor(.secondary)
