@@ -10,7 +10,7 @@
 
 ## What's New in FaceLift
 FaceLift continues development from AirCard v1.2.3 with these additions:
-- 💎 **Liquid Glass UI (macOS 26+):** The entire interface now speaks Apple's Liquid Glass design language — a floating glass header, toolbar and status bar that blur scrolling content beneath them, glass card panels, keypad keys, drop zones and buttons (`glassEffect`, `glassProminent`, `GlassEffectContainer`). On macOS 14/15 every surface falls back to the closest classic Material, so nothing breaks on older systems.
+- 💎 **Liquid Glass UI (macOS 26+):** The entire interface now speaks Apple's Liquid Glass design language — a native sidebar, unified toolbar and inspector that blur scrolling content beneath them, glass card panels, keypad keys, drop zones and buttons (`glassEffect`, `glassProminent`, `GlassEffectContainer`). On macOS 14/15 every surface falls back to the closest classic Material, so nothing breaks on older systems.
 - 🖼️ **Read Card Artwork Back from iPhone:** Each card's stored face is pulled into the Mac preview and kept across launches — no more re-assigning skins you already flashed.
 - 🎯 **Selective Artwork Reading:** "Read Selected from iPhone" pulls only the checked cards, so large collections stay fast.
 - 🔌 **USB vs Wi-Fi Awareness:** The status capsule shows whether your iPhone is connected over USB (green) or a Wi-Fi tunnel (orange), backed by usbmuxd's authoritative transport info. Operations that need USB (like reading artwork) warn you when you're on Wi-Fi.
