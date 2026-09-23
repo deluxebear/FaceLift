@@ -116,8 +116,9 @@ if [ -z "${SWIFT_SDK:-}" ]; then
         SWIFT_SDK="$CLT_SWIFTUI_SDK"
     fi
 fi
-swiftc -sdk "$SWIFT_SDK" -O -parse-as-library -target arm64-apple-macosx14.0 FaceLiftApp.swift -o build/FaceLift_arm64
-swiftc -sdk "$SWIFT_SDK" -O -parse-as-library -target x86_64-apple-macosx14.0 FaceLiftApp.swift -o build/FaceLift_x86_64
+SWIFT_SOURCES=$(find App Model Workspaces -name '*.swift' | sort)
+swiftc -sdk "$SWIFT_SDK" -O -parse-as-library -target arm64-apple-macosx14.0 $SWIFT_SOURCES -o build/FaceLift_arm64
+swiftc -sdk "$SWIFT_SDK" -O -parse-as-library -target x86_64-apple-macosx14.0 $SWIFT_SOURCES -o build/FaceLift_x86_64
 lipo -create -output "${MACOS_DIR}/FaceLift" build/FaceLift_arm64 build/FaceLift_x86_64
 chmod +x "${MACOS_DIR}/FaceLift"
 

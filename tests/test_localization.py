@@ -6,12 +6,18 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SWIFT = ROOT / "FaceLiftApp.swift"
+SWIFT_DIRS = [ROOT / "App", ROOT / "Model", ROOT / "Workspaces"]
 CATALOGS = {
     "en": ROOT / "Resources" / "en.lproj" / "Localizable.strings",
     "zh-Hans": ROOT / "Resources" / "zh-Hans.lproj" / "Localizable.strings",
 }
 SPEC = re.compile(r"%(?:\d+\$)?[@dDuUxXfFeEgG]")
+
+
+def swift_source() -> str:
+    files = sorted(path for directory in SWIFT_DIRS for path in directory.rglob("*.swift"))
+    assert files, "no Swift sources found"
+    return "\n".join(path.read_text() for path in files)
 
 
 def load_catalog(path: Path) -> dict:
@@ -62,7 +68,7 @@ def test_catalogs_match_and_cover_the_interface():
                 "TelephonyUI-8 (iOS 14–15)",
             }
 
-    missing = sorted(lookup_keys(SWIFT.read_text()) - set(catalogs["en"]))
+    missing = sorted(lookup_keys(swift_source()) - set(catalogs["en"]))
     assert missing == [], missing
 
 
