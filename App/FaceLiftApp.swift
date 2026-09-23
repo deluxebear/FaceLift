@@ -1,6 +1,4 @@
 import SwiftUI
-import AppKit
-import UniformTypeIdentifiers
 
 // MARK: - App Entry Point
 
@@ -13,18 +11,15 @@ struct FaceLiftApp: App {
             ContentView()
                 .environment(\.locale, Locale(identifier: language.resolved))
         }
-        .windowStyle(.hiddenTitleBar)
-        .windowResizability(.contentSize)
+        .windowToolbarStyle(.unified)
         .commands {
-            CommandMenu(L("Language")) {
-                Picker(selection: $language.choice) {
-                    Text(L("Follow System")).tag(AppLanguageChoice.system)
-                    Text("English").tag(AppLanguageChoice.en)
-                    Text("简体中文").tag(AppLanguageChoice.zhHans)
-                } label: {
-                    Text(L("Language"))
-                }
-            }
+            SidebarCommands()
+            FaceLiftCommands()
+        }
+
+        Settings {
+            SettingsView()
+                .environment(\.locale, Locale(identifier: language.resolved))
         }
     }
 }
