@@ -30,22 +30,9 @@ struct ContentView: View {
     }
 
     var body: some View {
-        NavigationSplitView {
-            SidebarView(vm: vm, selection: $window.section)
-                .navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 260)
-        } detail: {
-            detail
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .navigationTitle(window.section.title)
-                .navigationSubtitle(window.section.subtitle)
-                .toolbar { toolbarContent }
-                .inspector(isPresented: $window.isInspectorPresented) {
-                    inspectorContent
-                        .inspectorColumnWidth(min: 280, ideal: 320, max: 400)
-                }
+        GeometryReader { geometry in
+            windowLayout(width: geometry.size.width)
         }
-        // Keep the window toolbar on one surface during the inspector's first render.
-        .toolbarBackground(Color(nsColor: .textBackgroundColor), for: .windowToolbar)
         .frame(minWidth: 900, minHeight: 600)
         .tint(Color.brand)
         .focusedSceneObject(vm)
@@ -98,6 +85,33 @@ struct ContentView: View {
                 vm.checkDevice(silent: true)
             }
         }
+    }
+
+    private func windowLayout(width: CGFloat) -> some View {
+        // Reserve three minimum-size cards before giving the preview its 400-point width.
+        let threeColumnWorkspaceWidth: CGFloat = 3 * 210 + 2 * 13 + 2 * 25
+        let preferredSidebarWidth: CGFloat = 210
+        let cardInspectorWidth = min(400, max(280, width - preferredSidebarWidth - threeColumnWorkspaceWidth))
+        let inspectorMinWidth = window.section == .cards ? cardInspectorWidth : 280
+        let inspectorIdealWidth = window.section == .cards ? cardInspectorWidth : 320
+        let inspectorMaxWidth = window.section == .cards ? cardInspectorWidth : 400
+
+        return NavigationSplitView {
+            SidebarView(vm: vm, selection: $window.section)
+                .navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 260)
+        } detail: {
+            detail
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .navigationTitle(window.section.title)
+                .navigationSubtitle(window.section.subtitle)
+                .toolbar { toolbarContent }
+                .inspector(isPresented: $window.isInspectorPresented) {
+                    inspectorContent
+                        .inspectorColumnWidth(min: inspectorMinWidth, ideal: inspectorIdealWidth, max: inspectorMaxWidth)
+                }
+        }
+        // Keep the window toolbar on one surface during the inspector's first render.
+        .toolbarBackground(Color(nsColor: .textBackgroundColor), for: .windowToolbar)
     }
 
     @ViewBuilder

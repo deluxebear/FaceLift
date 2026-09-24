@@ -200,52 +200,60 @@ extension ContentView {
             .padding(.bottom, 12)
             Divider()
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                if vm.cards.isEmpty {
-                    emptyStateView
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 20)
-                        .faceLiftWorkspacePanel(cornerRadius: 18)
-                } else if filteredCardIndices.isEmpty {
-                    ContentUnavailableView.search(text: cardSearch)
-                        .frame(maxWidth: .infinity)
-                } else {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 210, maximum: 300), spacing: 13)], spacing: 13) {
-                        ForEach(filteredCardIndices, id: \.self) { index in
-                            WalletTileView(
-                                card: $vm.cards[index], index: index,
-                                onPickImage: { openCardImagePicker(for: vm.cards[index].id) },
-                                onClearImage: { vm.clearCardImage(for: vm.cards[index].id) },
-                                onDelete: { vm.deleteCard(id: vm.cards[index].id) },
-                                onStoreImage: { vm.storeSkin(for: vm.cards[index].id, url: $0) }
-                            )
+            GeometryReader { geometry in
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        if vm.cards.isEmpty {
+                            emptyStateView
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 20)
+                                .faceLiftWorkspacePanel(cornerRadius: 18)
+                        } else if filteredCardIndices.isEmpty {
+                            ContentUnavailableView.search(text: cardSearch)
+                                .frame(maxWidth: .infinity)
+                        } else {
+                            LazyVGrid(columns: walletGridColumns(for: geometry.size.width), spacing: 13) {
+                                ForEach(filteredCardIndices, id: \.self) { index in
+                                    WalletTileView(
+                                        card: $vm.cards[index], index: index,
+                                        onPickImage: { openCardImagePicker(for: vm.cards[index].id) },
+                                        onClearImage: { vm.clearCardImage(for: vm.cards[index].id) },
+                                        onDelete: { vm.deleteCard(id: vm.cards[index].id) },
+                                        onStoreImage: { vm.storeSkin(for: vm.cards[index].id, url: $0) }
+                                    )
+                                }
+                            }
                         }
+                        HStack(spacing: 12) {
+                            Image(systemName: "sparkles.rectangle.stack")
+                                .font(.title2)
+                                .foregroundStyle(Color.brand)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text(L("Make a passcode theme"))
+                                    .font(.title3.weight(.bold))
+                                Text(L("Turn a poster into a keypad, or design each key."))
+                                    .font(.caption)
+                                    .foregroundStyle(Color.secondary)
+                            }
+                            Spacer()
+                            Button(L("Open Creator")) { navigate(.creator) }
+                                .faceLiftSecondaryButton()
+                        }
+                        .padding(17)
+                        .faceLiftWorkspacePanel(cornerRadius: 13, tint: Color.brand.opacity(0.09))
                     }
+                    .padding(.horizontal, 25)
+                    .padding(.top, 15)
+                    .padding(.bottom, 24)
                 }
-                HStack(spacing: 12) {
-                    Image(systemName: "sparkles.rectangle.stack")
-                        .font(.title2)
-                        .foregroundStyle(Color.brand)
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(L("Make a passcode theme"))
-                            .font(.title3.weight(.bold))
-                        Text(L("Turn a poster into a keypad, or design each key."))
-                            .font(.caption)
-                            .foregroundStyle(Color.secondary)
-                    }
-                    Spacer()
-                    Button(L("Open Creator")) { navigate(.creator) }
-                        .faceLiftSecondaryButton()
-                }
-                .padding(17)
-                .faceLiftWorkspacePanel(cornerRadius: 13, tint: Color.brand.opacity(0.09))
-                }
-                .padding(.horizontal, 25)
-                .padding(.top, 15)
-                .padding(.bottom, 24)
             }
         }
+    }
+
+    private func walletGridColumns(for width: CGFloat) -> [GridItem] {
+        let availableWidth = max(0, width - 50) // Scroll content's horizontal padding.
+        let count = min(3, max(1, Int((availableWidth + 13) / (210 + 13))))
+        return Array(repeating: GridItem(.flexible(minimum: 210, maximum: 300), spacing: 13), count: count)
     }
 
     var filteredCardIndices: [Int] {
