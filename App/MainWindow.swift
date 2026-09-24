@@ -88,13 +88,10 @@ struct ContentView: View {
     }
 
     private func windowLayout(width: CGFloat) -> some View {
-        // Reserve three minimum-size cards before giving the preview its 400-point width.
+        // Keep every preview the same width while leaving room for three minimum-size cards.
         let threeColumnWorkspaceWidth: CGFloat = 3 * 210 + 2 * 13 + 2 * 25
         let preferredSidebarWidth: CGFloat = 210
-        let cardInspectorWidth = min(400, max(280, width - preferredSidebarWidth - threeColumnWorkspaceWidth))
-        let inspectorMinWidth = window.section == .cards ? cardInspectorWidth : 280
-        let inspectorIdealWidth = window.section == .cards ? cardInspectorWidth : 320
-        let inspectorMaxWidth = window.section == .cards ? cardInspectorWidth : 400
+        let inspectorWidth = min(400, max(280, width - preferredSidebarWidth - threeColumnWorkspaceWidth))
 
         return NavigationSplitView {
             SidebarView(vm: vm, selection: $window.section)
@@ -107,7 +104,7 @@ struct ContentView: View {
                 .toolbar { toolbarContent }
                 .inspector(isPresented: $window.isInspectorPresented) {
                     inspectorContent
-                        .inspectorColumnWidth(min: inspectorMinWidth, ideal: inspectorIdealWidth, max: inspectorMaxWidth)
+                        .inspectorColumnWidth(min: inspectorWidth, ideal: inspectorWidth, max: inspectorWidth)
                 }
         }
         // Keep the window toolbar on one surface during the inspector's first render.
