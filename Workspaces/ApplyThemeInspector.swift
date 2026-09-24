@@ -3,143 +3,69 @@ import AppKit
 import UniformTypeIdentifiers
 
 extension ContentView {
-    // MARK: - Apply Theme Mode
-    
-    var passcodeApplyThemeWorkspaceView: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            applyThemeControlsCard
-            targetSettingsCard
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .onDrop(of: [UTType.fileURL, UTType.data], isTargeted: nil) { providers in
-            if let provider = providers.first {
-                provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
-                    if let data = item as? Data, let url = URL(dataRepresentation: data, relativeTo: nil) {
-                        Task { @MainActor in
-                            vm.inspectPasscodeTheme(url: url)
-                        }
-                    } else if let url = item as? URL {
-                        Task { @MainActor in
-                            vm.inspectPasscodeTheme(url: url)
-                        }
-                    }
-                }
-                return true
-            }
-            return false
-        }
-    }
-    
-    var applyThemeControlsCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text(L("Passcode Theme File"))
-                .font(.caption)
-                .fontWeight(.semibold)
-                .foregroundColor(.secondary)
-            
-            if let theme = vm.loadedPasscodeTheme {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(spacing: 12) {
+    var applyThemeInspector: some View {
+        Form {
+            Section(L("Passcode Theme File")) {
+                if let theme = vm.loadedPasscodeTheme {
+                    HStack(spacing: 10) {
                         Image(systemName: "lock.square.stack.fill")
-                            .font(.largeTitle)
-                            .foregroundColor(Color.brand)
-                        
+                            .font(.title)
+                            .foregroundStyle(.tint)
                         VStack(alignment: .leading, spacing: 2) {
                             Text(theme.name)
                                 .font(.headline)
-                                .fontWeight(.bold)
-                            
+                                .lineLimit(2)
                             Text(theme.supportedVersions.count > 1
                                  ? L("Supports %@", theme.supportedVersions.joined(separator: ", "))
                                  : theme.detectedVersion)
-                                .font(.caption.weight(.semibold))
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.brand.opacity(0.15))
-                                .foregroundColor(Color.brand)
-                                .cornerRadius(4)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(L("%@ artwork assets", "\(theme.fileCount)"))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
                     }
-                    
-                    Text(L("%@ artwork assets loaded · Ready to flash to iPhone", "\(theme.fileCount)"))
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                    
-                    HStack(spacing: 8) {
-                        Button(action: { vm.editLoadedThemeInCreator() }) {
-                            Label(L("Edit in Creator"), systemImage: "pencil.and.outline")
-                        }
-                        .faceLiftProminentButton()
-                        .tint(Color.brand)
-                        .controlSize(.regular)
-                        
-                        Button(L("Change...")) {
-                            openPasscodeThemePicker()
-                        }
-                        .faceLiftSecondaryButton()
-                        .controlSize(.regular)
-                        
-                        Button(L("Clear")) {
-                            vm.loadedPasscodeTheme = nil
-                        }
-                        .faceLiftSecondaryButton()
-                        .controlSize(.regular)
+                    Button { vm.editLoadedThemeInCreator() } label: {
+                        Label(L("Edit in Creator"), systemImage: "pencil.and.outline")
                     }
-                }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .faceLiftPanel(cornerRadius: 12, fallback: Color(NSColor.controlBackgroundColor))
-            } else {
-                VStack(spacing: 10) {
-                    Image(systemName: "square.and.arrow.down.fill")
-                        .font(.system(size: 32))
-                        .foregroundColor(Color.brand)
-                    
-                    Text(L("Drop .passthm file here"))
-                        .font(.caption)
-                        .fontWeight(.semibold)
-                    
-                    Text(L("Supports .passthm, .passtheme, or .zip packages from Cowabunga or Nugget"))
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 8)
-                    
-                    Button(L("Choose File...")) {
-                        openPasscodeThemePicker()
+                } else {
+                    LabeledContent {
+                        Button(L("Choose File...")) { openPasscodeThemePicker() }
+                    } label: {
+                        Text(L("No theme selected"))
+                            .foregroundStyle(.secondary)
                     }
-                    .faceLiftProminentButton()
-                    .tint(Color.brand)
-                    .controlSize(.regular)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 20)
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(isTargetedTheme ? Color.brand : Color.brand.opacity(0.35), style: StrokeStyle(lineWidth: 1.5, dash: [6]))
-                        .background(faceLiftDropZoneFill(cornerRadius: 12))
-                )
-                .onDrop(of: [UTType.fileURL, UTType.data], isTargeted: $isTargetedTheme) { providers in
-                    if let provider = providers.first {
-                        provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
-                            if let data = item as? Data, let url = URL(dataRepresentation: data, relativeTo: nil) {
-                                Task { @MainActor in
-                                    vm.inspectPasscodeTheme(url: url)
-                                }
-                            } else if let url = item as? URL {
-                                Task { @MainActor in
-                                    vm.inspectPasscodeTheme(url: url)
-                                }
-                            }
-                        }
-                        return true
-                    }
-                    return false
                 }
             }
+            flashTargetSection
         }
-        .padding(14)
-        .faceLiftPanel(cornerRadius: 14, fallback: Color(NSColor.controlBackgroundColor).opacity(0.5))
+        .formStyle(.grouped)
+    }
+
+    /// Language and weight targets shared by the Lock Screen and Creator inspectors.
+    var flashTargetSection: some View {
+        let isUniversal = vm.passcodeLanguageTarget == .all && vm.passcodeBoldTarget == .both
+        return Section {
+            Picker(L("Keyboard Language"), selection: $vm.passcodeLanguageTarget) {
+                ForEach(PasscodeLanguageTarget.allCases) { item in
+                    Text(item.title).tag(item)
+                }
+            }
+            Picker(L("Font Weight"), selection: $vm.passcodeBoldTarget) {
+                ForEach(PasscodeBoldTarget.allCases) { item in
+                    Text(item.title).tag(item)
+                }
+            }
+        } header: {
+            Text(L("Flash Target"))
+        } footer: {
+            Text(isUniversal
+                 ? L("Universal mode flashes ~600 files for all languages & Bold text. Selecting a specific language (e.g. Ukrainian) speeds up flashing dramatically.")
+                 : L("Fast mode selected: only targets %@ with %@.", vm.passcodeLanguageTarget.title, vm.passcodeBoldTarget.title))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     // MARK: - Passcode Target Configuration Box

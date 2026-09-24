@@ -351,3 +351,8 @@
 "%@ cards · %@ selected" = "%@ cards · %@ selected";
 "No Cards Yet" = "No Cards Yet";
 "Previewing at %@ size" = "Previewing at %@ size";
+"No theme selected" = "No theme selected";
+"%@ artwork assets" = "%@ artwork assets";
+"Keyboard Language" = "Keyboard Language";
+"Font Weight" = "Font Weight";
+"Flash Target" = "Flash Target";

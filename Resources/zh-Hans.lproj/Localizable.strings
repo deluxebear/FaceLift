@@ -351,3 +351,8 @@
 "%@ cards · %@ selected" = "%@ 张卡片 · 已选 %@ 张";
 "No Cards Yet" = "还没有卡片";
 "Previewing at %@ size" = "按 %@ 尺寸预览";
+"No theme selected" = "未选择主题";
+"%@ artwork assets" = "%@ 个图片资源";
+"Keyboard Language" = "键盘语言";
+"Font Weight" = "字体粗细";
+"Flash Target" = "写入目标";

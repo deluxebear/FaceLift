@@ -15,13 +15,7 @@ extension ContentView {
 extension ContentView {
     
     var passcodeThemeWorkspaceView: some View {
-        Group {
-            if vm.passcodeTabMode == .applyTheme {
-                passcodeApplyThemeWorkspaceView
-            } else {
-                passcodeThemeCreatorWorkspaceView
-            }
-        }
+        passcodeThemeCreatorWorkspaceView
     }
     
     
