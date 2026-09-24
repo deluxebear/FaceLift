@@ -1,25 +1,34 @@
 # FaceLift 🎴
 
 > **Apple Wallet Card Skinner & Lockscreen Passcode Themer for iOS 18+ (No Jailbreak Required)**  
-> **Tested on iOS 27 release.**
-> Powered by the `airlift` AirTraffic sync exploit.
+> **v1.0.0** — Powered by the `airlift` AirTraffic sync exploit.
 
 **Language:** English | [简体中文](README.zh-CN.md)
 
+> [!IMPORTANT]
+> **Tested configuration:** So far v1.0.0 has only had real-device testing on **macOS 27** (host) driving an **iPhone 16 Pro on iOS 27.0**. Other macOS or iOS versions should work but are not yet verified — feedback welcome.
+
 ---
 
-## What's New in FaceLift
-FaceLift continues development from AirCard v1.2.3 with these additions:
-- 💎 **Liquid Glass UI (macOS 26+):** The entire interface now speaks Apple's Liquid Glass design language — a native sidebar, unified toolbar and inspector that blur scrolling content beneath them, glass card panels, keypad keys, drop zones and buttons (`glassEffect`, `glassProminent`, `GlassEffectContainer`). On macOS 14/15 every surface falls back to the closest classic Material, so nothing breaks on older systems.
+## Screenshots
+
+| Wallet Cards | Passcode Themes | Theme Creator |
+| :---: | :---: | :---: |
+| ![Wallet Cards](docs/screenshots/cards.png) | ![Passcode Themes](docs/screenshots/passcode-theme.png) | ![Theme Creator](docs/screenshots/theme-creator.png) |
+
+---
+
+## What's New in v1.0.0
+- 🎨 **Completely Rebuilt UI:** FaceLift now ships as a native, three-column macOS app — a source-list sidebar (Wallet Cards · Passcode Themes · Theme Creator, with your connected device below), a live iPhone preview in the center, and a contextual inspector on the right. Every surface uses clean, opaque materials for a calm, high-contrast look that stays legible in Light and Dark mode.
 - 🖼️ **Read Card Artwork Back from iPhone:** Each card's stored face is pulled into the Mac preview and kept across launches — no more re-assigning skins you already flashed.
 - 🎯 **Selective Artwork Reading:** "Read Selected from iPhone" pulls only the checked cards, so large collections stay fast.
 - 🔌 **USB vs Wi-Fi Awareness:** The status capsule shows whether your iPhone is connected over USB (green) or a Wi-Fi tunnel (orange), backed by usbmuxd's authoritative transport info. Operations that need USB (like reading artwork) warn you when you're on Wi-Fi.
-- 🌏 **Simplified Chinese Interface:** Full zh-Hans localization with a language menu (Follow System / English / 简体中文).
-- 🛠️ **Stability Fixes:** Resolved stderr pipe deadlocks, added batch flash with per-file fallback, and fixed drag-and-drop handling.
+- 🌏 **Simplified Chinese Interface:** Full zh-Hans localization with a language menu (Follow System / English / 简体中文), including Dutch keypad targets.
+- 🖱️ **Drag & Drop Everywhere:** Drop a `.passthm` onto the keypad preview, or an image onto a card or an individual key.
 
 ## Features
 - 🎨 **Custom Card Skins:** Assign custom artwork, textures, or bank logos to Apple Pay and Wallet cards.
-- 💎 **Liquid Glass Interface:** Native macOS 26+ Liquid Glass chrome and surfaces with automatic Material fallbacks on macOS 14/15.
+- 🖥️ **Native macOS Interface:** A rebuilt sidebar + preview + inspector layout with opaque, high-contrast surfaces and full Light/Dark mode support.
 - 🔢 **Lock Screen Passcode Themes (.passthm):** Apply custom keypad button artwork from popular `.passthm` themes directly to iOS 18+ lockscreen.
 - 🧩 **Passcode Theme Creator:** Create custom themes from a single wallpaper (Seamless Poster Slicing) or build key-by-key (Individual Keys).
 - 🔍 **Interactive Photo Framing:** Pan and zoom artwork directly inside keypad buttons with real-time iPhone preview.
@@ -51,7 +60,7 @@ FaceLift continues development from AirCard v1.2.3 with these additions:
 
 ## How to Customize Apple Wallet Cards
 1. Connect your iPhone to your Mac via USB cable and ensure it is unlocked and trusted.
-2. In FaceLift, stay on the **Wallet Cards** tab and click **Scan Cards**.
+2. In FaceLift, select **Wallet Cards** in the sidebar and click **Scan Cards**.
 3. On your iPhone:
    - **Double-click the Side (Power) button** to open Apple Pay.
    - Authenticate with **Face ID**.
@@ -63,8 +72,8 @@ FaceLift continues development from AirCard v1.2.3 with these additions:
 ---
 
 ## How to Apply Lockscreen Passcode Themes (.passthm)
-1. Switch to the **Passcode Themes** tab at the top of FaceLift.
-2. Drag & drop any `.passthm` file into the app (or click **Choose .passthm File**).
+1. Select **Passcode Themes** in the FaceLift sidebar.
+2. Drag & drop any `.passthm` file onto the keypad preview (or click **Choose File...** in the inspector).
 3. FaceLift will inspect the theme and display an interactive preview on the numeric keypad (0–9, *, #).
 4. Click **Apply Passcode Theme**.
   5. Lock your iPhone to see the custom passcode buttons. On a tested iPhone 16 Pro running iOS 27.0, a reboot regenerated the default keypad even after the theme was applied successfully. Reapply the theme after reboot if needed; persistence across reboot is not currently verified.

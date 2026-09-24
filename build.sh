@@ -9,7 +9,7 @@ make clean
 make all
 
 APP_NAME="FaceLift"
-APP_VERSION="${APP_VERSION:-0.10.0}"
+APP_VERSION="${APP_VERSION:-1.0.0}"
 # SIGN_IDENTITY: "-" keeps the current ad-hoc signing for local development.
 # Set it to "Developer ID Application: ..." (or let CI set it) to sign for
 # distribution. NOTARIZE=1 additionally notarizes and staples when the
