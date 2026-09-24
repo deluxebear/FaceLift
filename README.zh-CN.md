@@ -1,12 +1,12 @@
 # FaceLift 🎴
 
 > **适用于 iOS 18+ 的 Apple Wallet 卡面定制与锁屏密码主题工具(无需越狱)**  
-> **v1.0.0** — 基于 `airlift` AirTraffic 同步漏洞实现。
+> **v1.0.1** — 基于 `airlift` AirTraffic 同步漏洞实现。
 
 **语言:** [English](README.md) | 简体中文
 
 > [!IMPORTANT]
-> **已测试环境:** 目前 v1.0.0 仅在 **macOS 27**(主机)驱动 **iPhone 16 Pro(iOS 27.0)** 的组合下完成真机测试。其他 macOS 或 iOS 版本应可正常使用,但尚未验证,欢迎反馈。
+> **已测试环境:** 目前 v1.0.1 仅在 **macOS 27**(主机)驱动 **iPhone 16 Pro(iOS 27.0)** 的组合下完成真机测试。其他 macOS 或 iOS 版本应可正常使用,但尚未验证,欢迎反馈。
 
 ---
 
@@ -17,6 +17,9 @@
 | ![钱包卡片](docs/screenshots/cards.png) | ![锁屏密码主题](docs/screenshots/passcode-theme.png) | ![制作主题](docs/screenshots/theme-creator.png) |
 
 ---
+
+## v1.0.1 新增功能
+- 🗂️ **统一卡片存储:** 卡片列表现在只保存在 `~/Library/Application Support/FaceLift/cards.json`。旧版本保存的列表会在首次启动时自动迁移,旧副本随之停用,不会再被读回。
 
 ## v1.0.0 新增功能
 - 🎨 **界面完全重构:** FaceLift 现为原生的三栏 macOS 应用——左侧为源列表侧边栏(钱包卡片 · 锁屏密码主题 · 制作主题,下方显示已连接的设备),中间为实时 iPhone 预览,右侧为随上下文变化的检查器。所有表面均采用干净的不透明材质,呈现沉稳、高对比的观感,在浅色与深色模式下都清晰易读。

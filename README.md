@@ -1,12 +1,12 @@
 # FaceLift 🎴
 
 > **Apple Wallet Card Skinner & Lockscreen Passcode Themer for iOS 18+ (No Jailbreak Required)**  
-> **v1.0.0** — Powered by the `airlift` AirTraffic sync exploit.
+> **v1.0.1** — Powered by the `airlift` AirTraffic sync exploit.
 
 **Language:** English | [简体中文](README.zh-CN.md)
 
 > [!IMPORTANT]
-> **Tested configuration:** So far v1.0.0 has only had real-device testing on **macOS 27** (host) driving an **iPhone 16 Pro on iOS 27.0**. Other macOS or iOS versions should work but are not yet verified — feedback welcome.
+> **Tested configuration:** So far v1.0.1 has only had real-device testing on **macOS 27** (host) driving an **iPhone 16 Pro on iOS 27.0**. Other macOS or iOS versions should work but are not yet verified — feedback welcome.
 
 ---
 
@@ -17,6 +17,9 @@
 | ![Wallet Cards](docs/screenshots/cards.png) | ![Passcode Themes](docs/screenshots/passcode-theme.png) | ![Theme Creator](docs/screenshots/theme-creator.png) |
 
 ---
+
+## What's New in v1.0.1
+- 🗂️ **Single Card Store:** Your card list now lives only in `~/Library/Application Support/FaceLift/cards.json`. Lists saved by older versions are migrated automatically on first launch, and the old copies are retired so they no longer come back.
 
 ## What's New in v1.0.0
 - 🎨 **Completely Rebuilt UI:** FaceLift now ships as a native, three-column macOS app — a source-list sidebar (Wallet Cards · Passcode Themes · Theme Creator, with your connected device below), a live iPhone preview in the center, and a contextual inspector on the right. Every surface uses clean, opaque materials for a calm, high-contrast look that stays legible in Light and Dark mode.
