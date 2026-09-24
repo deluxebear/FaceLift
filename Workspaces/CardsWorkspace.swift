@@ -136,6 +136,17 @@ extension ContentView {
                     .disabled(vm.cards.isEmpty)
                 }
                 if vm.isScanningCards { scanningNoticeBanner.clipShape(RoundedRectangle(cornerRadius: 12)) }
+                if hiddenReadyToFlashCount > 0 {
+                    Label {
+                        Text(L("Search hides %@ selected card(s) ready to flash. Flashing still includes them.", "\(hiddenReadyToFlashCount)"))
+                            .foregroundStyle(.primary)
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                    }
+                    .font(.callout)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
             .padding(.horizontal, 20)
             .padding(.top, 12)
@@ -198,6 +209,13 @@ extension ContentView {
             vm.cards[index].id.localizedCaseInsensitiveContains(query) ||
             String(index + 1).contains(query)
         }
+    }
+
+    var hiddenReadyToFlashCount: Int {
+        let visibleIndices = Set(filteredCardIndices)
+        return vm.cards.indices.filter { index in
+            !visibleIndices.contains(index) && vm.cards[index].isSelected && vm.cards[index].customImageURL != nil
+        }.count
     }
 
 

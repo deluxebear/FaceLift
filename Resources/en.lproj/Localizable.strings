@@ -278,6 +278,7 @@
 "Apply or create a passcode theme" = "Apply or create a passcode theme";
 "My Cards" = "My Cards";
 "Search cards by hash or number" = "Search cards by hash or number";
+"Search hides %@ selected card(s) ready to flash. Flashing still includes them." = "Search hides %@ selected card(s) ready to flash. Flashing still includes them.";
 "Add Artwork" = "Add Artwork";
 "Artwork not set" = "Artwork not set";
 "Artwork ready" = "Artwork ready";
