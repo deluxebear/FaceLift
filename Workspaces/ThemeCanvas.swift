@@ -52,7 +52,7 @@ extension ContentView {
             }
         }
         .onDrop(
-            of: isApply ? [UTType.fileURL, UTType.data] : [UTType.fileURL, UTType.image],
+            of: isApply ? [UTType.fileURL] : [UTType.fileURL, UTType.image],
             isTargeted: $isCanvasTargeted
         ) { providers in
             isApply ? handleThemeDrop(providers: providers) : handleCreatorDrop(providers: providers, keyDigit: nil)
