@@ -4,9 +4,9 @@ import UniformTypeIdentifiers
 
 // MARK: - Liquid Glass Design System
 //
-// macOS 26+ renders real Liquid Glass surfaces (glassEffect / glassProminent /
-// GlassEffectContainer). On macOS 14/15 every helper below falls back to the
-// closest classic Material so the deployment target stays at macOS 14.
+// Page content uses system styles; Liquid Glass is kept only for the simulated
+// iOS keypad. macOS 26+ renders real glass (glassEffect / GlassEffectContainer);
+// macOS 14/15 fall back to translucent fills so the deployment target stays 14.
 
 enum GlassDesign {
     static let supportsGlass: Bool = {
@@ -15,81 +15,7 @@ enum GlassDesign {
     }()
 }
 
-@available(macOS 26.0, *)
-func faceLiftGlass(_ tint: Color?, _ interactive: Bool) -> Glass {
-    var glass = Glass.regular
-    if let tint { glass = glass.tint(tint) }
-    if interactive { glass = glass.interactive() }
-    return glass
-}
-
 extension View {
-    /// Floating glass panel (cards, side panels, pills). Falls back to a
-    /// translucent control-background fill on older systems.
-    @ViewBuilder
-    func faceLiftPanel(
-        cornerRadius: CGFloat,
-        tint: Color? = nil,
-        interactive: Bool = false,
-        fallback: Color = Color(NSColor.controlBackgroundColor).opacity(0.5)
-    ) -> some View {
-        if #available(macOS 26.0, *) {
-            self.glassEffect(
-                faceLiftGlass(tint, interactive),
-                in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            )
-        } else {
-            self.background(
-                fallback,
-                in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            )
-        }
-    }
-
-    /// Pill/capsule surface with a Material fallback.
-    @ViewBuilder
-    func faceLiftCapsule(
-        tint: Color? = nil,
-        interactive: Bool = false,
-        fallbackMaterial: Material = .ultraThinMaterial
-    ) -> some View {
-        if #available(macOS 26.0, *) {
-            self.glassEffect(faceLiftGlass(tint, interactive), in: Capsule())
-        } else {
-            self.background(fallbackMaterial, in: Capsule())
-        }
-    }
-
-    /// Tinted accent capsule (version badge) with a solid-color fallback.
-    @ViewBuilder
-    func faceLiftTintedCapsule(fallback: Color) -> some View {
-        if #available(macOS 26.0, *) {
-            self.glassEffect(Glass.regular.tint(Color.accentColor), in: Capsule())
-        } else {
-            self.background(fallback, in: Capsule())
-        }
-    }
-
-    /// Prominent call-to-action button (glass prominent on macOS 26+).
-    @ViewBuilder
-    func faceLiftProminentButton() -> some View {
-        if #available(macOS 26.0, *) {
-            self.buttonStyle(.glassProminent)
-        } else {
-            self.buttonStyle(.borderedProminent)
-        }
-    }
-
-    /// Secondary button (glass on macOS 26+).
-    @ViewBuilder
-    func faceLiftSecondaryButton() -> some View {
-        if #available(macOS 26.0, *) {
-            self.buttonStyle(.glass)
-        } else {
-            self.buttonStyle(.bordered)
-        }
-    }
-
     /// Groups sibling glass shapes so nearby surfaces blend and morph.
     @ViewBuilder
     func faceLiftGlassGroup(spacing: CGFloat = 12) -> some View {
@@ -99,43 +25,6 @@ extension View {
             self
         }
     }
-
-    /// Live-scanner banner: tinted glass band on macOS 26+.
-    @ViewBuilder
-    func faceLiftBannerSurface() -> some View {
-        if #available(macOS 26.0, *) {
-            self.glassEffect(Glass.regular.tint(Color.brand.opacity(0.16)), in: Rectangle())
-        } else {
-            self.background(Color.brand.opacity(0.1))
-        }
-    }
-
-    /// Interior fill for dashed drop zones.
-    @ViewBuilder
-    func faceLiftDropZoneFill(cornerRadius: CGFloat) -> some View {
-        if #available(macOS 26.0, *) {
-            Color.clear.glassEffect(
-                .regular,
-                in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            )
-        } else {
-            Color(NSColor.controlBackgroundColor).opacity(0.4).cornerRadius(cornerRadius)
-        }
-    }
-
-    /// New workspace surfaces use native Liquid Glass on macOS 26+.
-    @ViewBuilder
-    func faceLiftWorkspacePanel(cornerRadius: CGFloat, tint: Color? = nil) -> some View {
-        if #available(macOS 26.0, *) {
-            self.glassEffect(
-                faceLiftGlass(tint, false),
-                in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-            )
-        } else {
-            self.background(.regularMaterial, in: RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-        }
-    }
-
 }
 
 /// Translucent keypad key surface: real interactive Liquid Glass on macOS 26+,

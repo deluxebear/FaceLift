@@ -364,3 +364,4 @@
 "%@ of 10" = "%@ of 10";
 "Key %@" = "Key %@";
 "Connection" = "Connection";
+"Version %@" = "Version %@";
