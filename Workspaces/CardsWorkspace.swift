@@ -48,121 +48,124 @@ struct WalletTileView: View {
     let onStoreImage: (URL) -> Void
     @State private var isTargeted = false
 
+    private let artworkShape = RoundedRectangle(cornerRadius: 10, style: .continuous)
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(LinearGradient(colors: [Color(red: 0.13, green: 0.35, blue: 0.75), Color(red: 0.03, green: 0.12, blue: 0.31)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                if let image = card.customImage {
-                    GeometryReader { proxy in
-                        Image(nsImage: image)
-                            .resizable()
-                            .scaledToFill()
-                            .frame(width: proxy.size.width, height: proxy.size.height)
-                            .clipped()
-                    }
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                } else {
-                    VStack(alignment: .leading) {
-                        Image(systemName: "wave.3.right")
-                            .font(.title3)
-                        Spacer()
-                        Text(L("Card #%@", String(index + 1)))
-                            .font(.title3.weight(.semibold))
-                        Text(card.id.prefix(8) + "…" + card.id.suffix(6))
-                            .font(.caption.monospaced())
-                            .foregroundStyle(.white.opacity(0.72))
-                    }
-                    .foregroundStyle(.white)
-                    .padding(17)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
-                }
-                if card.customImage == nil {
-                    Label(L("Add Artwork"), systemImage: "plus")
-                        .font(.caption.weight(.semibold))
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(.white.opacity(0.18), in: Capsule())
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                        .padding(12)
-                }
-            }
-            .aspectRatio(1.59, contentMode: .fit)
-            .overlay(RoundedRectangle(cornerRadius: 14).stroke(.white.opacity(0.28), lineWidth: 1))
-            .onTapGesture(perform: onPickImage)
-            .onDrop(of: [UTType.fileURL], isTargeted: $isTargeted) { providers in
-                guard let provider = providers.first else { return false }
-                provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
-                    let url = (item as? URL) ?? (item as? Data).flatMap { URL(dataRepresentation: $0, relativeTo: nil) }
-                    guard let url, NSImage(contentsOf: url) != nil else { return }
-                    Task { @MainActor in onStoreImage(url) }
-                }
-                return true
-            }
-
-            HStack(alignment: .top, spacing: 8) {
-                Button { card.isSelected.toggle() } label: {
-                    Image(systemName: card.isSelected ? "checkmark.square.fill" : "square")
-                        .font(.title.weight(.medium))
-                        .foregroundStyle(card.isSelected ? Color.brand : Color.secondary)
-                }
-                .buttonStyle(.plain)
-                .help(card.isSelected ? L("Remove from flash") : L("Include in flash"))
-                .accessibilityLabel(Text(L("Card #%@", String(index + 1))))
-                .accessibilityValue(Text(card.isSelected ? L("Selected for flash") : L("Not selected for flash")))
-                .accessibilityHint(Text(card.isSelected ? L("Remove from flash") : L("Include in flash")))
-
-                VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 8) {
+            artwork
+            HStack(alignment: .top, spacing: 6) {
+                Toggle(isOn: $card.isSelected) { EmptyView() }
+                    .toggleStyle(.checkbox)
+                    .labelsHidden()
+                    .help(card.isSelected ? L("Remove from flash") : L("Include in flash"))
+                    .accessibilityLabel(Text(L("Card #%@", String(index + 1))))
+                    .accessibilityValue(Text(card.isSelected ? L("Selected for flash") : L("Not selected for flash")))
+                    .accessibilityHint(Text(card.isSelected ? L("Remove from flash") : L("Include in flash")))
+                VStack(alignment: .leading, spacing: 1) {
                     Text(L("Card #%@", String(index + 1)))
-                        .font(.title3.weight(.bold))
-                        .foregroundStyle(Color.primary)
+                        .font(.headline)
                     Text(card.customImage == nil ? L("Artwork not set") : L("Artwork ready"))
                         .font(.caption)
-                        .foregroundStyle(Color.secondary)
+                        .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 0)
-                Menu {
-                    Button(L("Change Skin"), action: onPickImage)
-                    if card.customImage != nil { Button(L("Remove skin"), action: onClearImage) }
-                    Button(L("Copy full hash")) {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(card.id, forType: .string)
-                    }
-                    Divider()
-                    Button(L("Remove from list"), role: .destructive, action: onDelete)
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.title3.weight(.bold))
-                        .frame(width: 30, height: 30)
-                        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 9))
-                        .overlay(RoundedRectangle(cornerRadius: 9).stroke(Color(nsColor: .separatorColor)))
+                Menu { menuItems } label: {
+                    Image(systemName: "ellipsis.circle")
                 }
                 .menuStyle(.borderlessButton)
-                .frame(width: 34)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help(L("More"))
+            }
+            .padding(.horizontal, 3)
+        }
+        .contextMenu { menuItems }
+    }
+
+    private var artwork: some View {
+        ZStack {
+            if let image = card.customImage {
+                GeometryReader { proxy in
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: proxy.size.width, height: proxy.size.height)
+                        .clipped()
+                }
+            } else {
+                artworkPlaceholder
             }
         }
-        .padding(12)
-        .faceLiftWorkspacePanel(cornerRadius: 17)
-        .overlay(RoundedRectangle(cornerRadius: 17).stroke(card.isSelected ? Color.brand.opacity(0.72) : Color(nsColor: .separatorColor), lineWidth: card.isSelected ? 1.5 : 1))
-        .shadow(color: Color.brand.opacity(0.06), radius: 12, y: 5)
+        .aspectRatio(1.59, contentMode: .fit)
+        .clipShape(artworkShape)
+        .overlay(artworkShape.strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
+        .overlay(alignment: .topTrailing) {
+            if card.isSelected {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.title3)
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(.white, Color.brand)
+                    .padding(8)
+                    .accessibilityHidden(true)
+            }
+        }
+        .padding(3) // Room for the selection ring.
+        .overlay(
+            RoundedRectangle(cornerRadius: 13, style: .continuous)
+                .strokeBorder(Color.brand, lineWidth: 3)
+                .opacity(card.isSelected || isTargeted ? 1 : 0)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture(perform: onPickImage)
+        .onDrop(of: [UTType.fileURL], isTargeted: $isTargeted) { providers in
+            guard let provider = providers.first else { return false }
+            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+                let url = (item as? URL) ?? (item as? Data).flatMap { URL(dataRepresentation: $0, relativeTo: nil) }
+                guard let url, NSImage(contentsOf: url) != nil else { return }
+                Task { @MainActor in onStoreImage(url) }
+            }
+            return true
+        }
+    }
+
+    private var artworkPlaceholder: some View {
+        ZStack {
+            Rectangle().fill(.quaternary)
+            VStack(spacing: 6) {
+                Image(systemName: "photo.badge.plus")
+                    .font(.title2)
+                Text(L("Add Artwork"))
+                    .font(.callout.weight(.medium))
+                Text(card.id.prefix(8) + "…" + card.id.suffix(6))
+                    .font(.caption.monospaced())
+            }
+            .foregroundStyle(.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private var menuItems: some View {
+        Button(L("Change Skin"), action: onPickImage)
+        if card.customImage != nil { Button(L("Remove skin"), action: onClearImage) }
+        Button(L("Copy full hash")) {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(card.id, forType: .string)
+        }
+        Divider()
+        Button(L("Remove from list"), role: .destructive, action: onDelete)
     }
 }
 
 extension ContentView {
     var walletWorkspace: some View {
         VStack(spacing: 0) {
-            VStack(alignment: .leading, spacing: 20) {
-                HStack(spacing: 9) {
-                    Text(L("My Cards"))
-                        .font(.title3.weight(.semibold))
-                    Text("\(vm.cards.count)")
-                        .font(.caption.weight(.semibold))
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 12) {
+                    Text(cardCountSummary)
+                        .font(.callout)
                         .foregroundStyle(.secondary)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 2)
-                        .background(Color.brand.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
-                    Spacer(minLength: 4)
+                        .monospacedDigit()
+                    Spacer(minLength: 8)
                     CardSearchField(
                         text: $cardSearch,
                         placeholder: L("Search cards by hash or number"),
@@ -182,37 +185,30 @@ extension ContentView {
                     .fixedSize()
                     .disabled(vm.cards.isEmpty)
                 }
-                if vm.isScanningCards { scanningNoticeBanner.clipShape(RoundedRectangle(cornerRadius: 12)) }
+                if vm.isScanningCards { scanningNoticeBanner }
                 if hiddenReadyToFlashCount > 0 {
-                    Label {
-                        Text(L("Search hides %@ selected card(s) ready to flash. Flashing still includes them.", "\(hiddenReadyToFlashCount)"))
-                            .foregroundStyle(.primary)
-                    } icon: {
+                    NoticeBar(title: L("Search hides %@ selected card(s) ready to flash. Flashing still includes them.", "\(hiddenReadyToFlashCount)")) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .foregroundStyle(.orange)
                     }
-                    .font(.callout)
-                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
             .padding(.horizontal, 20)
-            .padding(.top, 12)
-            .padding(.bottom, 12)
+            .padding(.vertical, 12)
             Divider()
 
-            GeometryReader { geometry in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
-                        if vm.cards.isEmpty {
-                            emptyStateView
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 20)
-                                .faceLiftWorkspacePanel(cornerRadius: 18)
-                        } else if filteredCardIndices.isEmpty {
+            if vm.cards.isEmpty {
+                emptyStateView
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                GeometryReader { geometry in
+                    ScrollView {
+                        if filteredCardIndices.isEmpty {
                             ContentUnavailableView.search(text: cardSearch)
                                 .frame(maxWidth: .infinity)
+                                .padding(.top, 40)
                         } else {
-                            LazyVGrid(columns: walletGridColumns(for: geometry.size.width), spacing: 13) {
+                            LazyVGrid(columns: walletGridColumns(for: geometry.size.width), spacing: 16) {
                                 ForEach(filteredCardIndices, id: \.self) { index in
                                     WalletTileView(
                                         card: $vm.cards[index], index: index,
@@ -223,37 +219,22 @@ extension ContentView {
                                     )
                                 }
                             }
+                            .padding(20)
                         }
-                        HStack(spacing: 12) {
-                            Image(systemName: "sparkles.rectangle.stack")
-                                .font(.title2)
-                                .foregroundStyle(Color.brand)
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(L("Make a passcode theme"))
-                                    .font(.title3.weight(.bold))
-                                Text(L("Turn a poster into a keypad, or design each key."))
-                                    .font(.caption)
-                                    .foregroundStyle(Color.secondary)
-                            }
-                            Spacer()
-                            Button(L("Open Creator")) { navigate(.creator) }
-                                .faceLiftSecondaryButton()
-                        }
-                        .padding(17)
-                        .faceLiftWorkspacePanel(cornerRadius: 13, tint: Color.brand.opacity(0.09))
                     }
-                    .padding(.horizontal, 25)
-                    .padding(.top, 15)
-                    .padding(.bottom, 24)
                 }
             }
         }
     }
 
     private func walletGridColumns(for width: CGFloat) -> [GridItem] {
-        let availableWidth = max(0, width - 50) // Scroll content's horizontal padding.
-        let count = min(3, max(1, Int((availableWidth + 13) / (210 + 13))))
-        return Array(repeating: GridItem(.flexible(minimum: 210, maximum: 300), spacing: 13), count: count)
+        let availableWidth = max(0, width - 40) // Grid's horizontal padding.
+        let count = min(3, max(1, Int((availableWidth + 16) / (210 + 16))))
+        return Array(repeating: GridItem(.flexible(minimum: 210, maximum: 300), spacing: 16), count: count)
+    }
+
+    var cardCountSummary: String {
+        L("%@ cards · %@ selected", "\(vm.cards.count)", "\(vm.cards.filter(\.isSelected).count)")
     }
 
     var filteredCardIndices: [Int] {
@@ -275,13 +256,6 @@ extension ContentView {
 
     var walletPreview: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text(L("Live Preview"))
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(Color.primary)
-                Spacer()
-            }
-            .padding(.bottom, 13)
             walletPhone
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             HStack(spacing: 8) {
@@ -380,87 +354,35 @@ extension ContentView {
 
 extension ContentView {
     var scanningNoticeBanner: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "iphone.radiowaves.left.and.right")
-                .font(.title)
-                .foregroundStyle(Color.brand)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text(L("Live Scanner Active"))
-                    .font(.caption)
-                    .fontWeight(.bold)
-                    .foregroundStyle(Color.brand)
-                Text(L("Double-click Side button (Apple Pay), pass Face ID, then tap your card."))
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
-            
-            Spacer()
-            
-            Button(L("Done")) {
-                vm.stopCardScanning()
-            }
-            .faceLiftSecondaryButton()
-            .controlSize(.small)
+        NoticeBar(
+            title: L("Live Scanner Active"),
+            message: L("Double-click Side button (Apple Pay), pass Face ID, then tap your card.")
+        ) {
+            ProgressView().controlSize(.small)
+        } trailing: {
+            Button(L("Done")) { vm.stopCardScanning() }
+                .controlSize(.small)
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 8)
-        .faceLiftBannerSurface()
     }
-    
+
     var emptyStateView: some View {
-        VStack(spacing: 18) {
-            Image(systemName: "creditcard.viewfinder")
-                .font(.system(size: 54))
-                .foregroundColor(.accentColor.opacity(0.8))
-            
-            Text(L("No Cards Detected Yet"))
-                .font(.title3)
-                .fontWeight(.bold)
-            
-            VStack(alignment: .leading, spacing: 10) {
-                HStack(alignment: .top, spacing: 10) {
-                    Text("1.")
-                        .fontWeight(.bold)
-                        .foregroundColor(.accentColor)
-                    LM("Click **Scan Cards** in the toolbar above.")
-                }
-                HStack(alignment: .top, spacing: 10) {
-                    Text("2.")
-                        .fontWeight(.bold)
-                        .foregroundColor(.accentColor)
-                    LM("On your iPhone, **double-click the Side button** (Apple Pay), authenticate with **Face ID**, and **tap your card**.")
-                }
-                HStack(alignment: .top, spacing: 10) {
-                    Text("3.")
-                        .fontWeight(.bold)
-                        .foregroundColor(.accentColor)
-                    Text(L("Your card will be detected immediately!"))
-                }
+        ContentUnavailableView {
+            Label(L("No Cards Yet"), systemImage: "creditcard.viewfinder")
+        } description: {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(alignment: .top, spacing: 6) { Text("1."); LM("Click **Scan Cards** in the toolbar above.") }
+                HStack(alignment: .top, spacing: 6) { Text("2."); LM("On your iPhone, **double-click the Side button** (Apple Pay), authenticate with **Face ID**, and **tap your card**.") }
+                HStack(alignment: .top, spacing: 6) { Text("3."); Text(L("Your card will be detected immediately!")) }
             }
-            .font(.subheadline)
-            .foregroundColor(.secondary)
-            .frame(maxWidth: 460)
-            .padding(20)
-            .faceLiftPanel(cornerRadius: 12, fallback: Color(NSColor.controlBackgroundColor))
-            
-            HStack(spacing: 12) {
-                Button(action: { vm.startCardScanning() }) {
-                    Label(L("Start Scanning"), systemImage: "wave.3.forward.circle.fill")
-                        .fontWeight(.semibold)
-                }
-                .faceLiftProminentButton()
-                .controlSize(.regular)
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: 420)
+        } actions: {
+            Button(L("Start Scanning")) { vm.startCardScanning() }
+                .buttonStyle(.borderedProminent)
                 .disabled(vm.device?.connected != true)
-                
-                Button(L("Add Hashes Manually")) {
-                    vm.showAddCardSheet = true
-                }
-                .faceLiftSecondaryButton()
-                .controlSize(.regular)
-            }
+            Button(L("Add Hashes Manually")) { vm.showAddCardSheet = true }
+                .buttonStyle(.bordered)
         }
-        .padding(40)
     }
     
     // MARK: - Passcode Views

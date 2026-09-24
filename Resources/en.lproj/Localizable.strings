@@ -348,3 +348,5 @@
 "Show Inspector" = "Show Inspector";
 "Hide Activity Log" = "Hide Activity Log";
 "Target TelephonyUI version" = "Target TelephonyUI version";
+"%@ cards · %@ selected" = "%@ cards · %@ selected";
+"No Cards Yet" = "No Cards Yet";
