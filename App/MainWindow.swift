@@ -98,7 +98,7 @@ struct ContentView: View {
                 .navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 260)
         } detail: {
             detail
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
                 .navigationTitle(window.section.title)
                 .navigationSubtitle(window.section.subtitle)
                 .toolbar { toolbarContent }
