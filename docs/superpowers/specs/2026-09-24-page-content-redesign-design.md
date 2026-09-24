@@ -180,7 +180,7 @@ cancel `.keyboardShortcut(.cancelAction)`, system button styles, titles in
 `.headline`.
 
 - **Guide:** no top "Close". Steps grouped under "Cards" (1–3) and "Lock
-  Screen Themes" (4–5) subheadings; "Done" bottom-trailing.
+  Screen Themes" (1–2, numbering restarts per group) subheadings; "Done" bottom-trailing.
 - **About (Credits):** `NSApp.applicationIconImage` at 64 pt, name, version
   from `CFBundleShortVersionString`, one-line tagline; credits in a two-column
   `Grid` (labels trailing-aligned `.secondary`, values leading) without the
