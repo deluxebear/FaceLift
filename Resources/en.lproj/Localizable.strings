@@ -350,3 +350,4 @@
 "Target TelephonyUI version" = "Target TelephonyUI version";
 "%@ cards · %@ selected" = "%@ cards · %@ selected";
 "No Cards Yet" = "No Cards Yet";
+"Previewing at %@ size" = "Previewing at %@ size";

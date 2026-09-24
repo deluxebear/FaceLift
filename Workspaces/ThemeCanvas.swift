@@ -3,6 +3,50 @@ import AppKit
 import UniformTypeIdentifiers
 
 extension ContentView {
+    /// Lock Screen / Creator detail area: the phone mockup centered on a
+    /// canvas that also accepts the page's file drops.
+    var themeCanvas: some View {
+        let isApply = vm.passcodeTabMode == .applyTheme
+        return VStack(spacing: 12) {
+            phoneMockupContainer {
+                if isApply {
+                    applyThemeDialerCanvas
+                } else {
+                    creatorDialerCanvas
+                }
+            }
+            VStack(spacing: 4) {
+                if isApply && vm.loadedPasscodeTheme == nil {
+                    Text(L("Drop .passthm file here"))
+                        .font(.callout.weight(.medium))
+                }
+                Text(canvasCaption)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(nsColor: .underPageBackgroundColor))
+        .overlay {
+            if isCanvasTargeted {
+                Rectangle().strokeBorder(Color.brand, lineWidth: 3)
+            }
+        }
+        .onDrop(
+            of: isApply ? [UTType.fileURL, UTType.data] : [UTType.fileURL, UTType.image],
+            isTargeted: $isCanvasTargeted
+        ) { providers in
+            isApply ? handleThemeDrop(providers: providers) : handlePosterDrop(providers: providers)
+        }
+    }
+
+    var canvasCaption: String {
+        vm.device?.connected == true
+            ? L("Previewing at %@ size", vm.device?.name ?? "iPhone")
+            : L("iPhone Preview")
+    }
+
     var applyThemeDialerCanvas: some View {
         ZStack {
             ForEach(KeypadLayout.allButtons) { btn in
@@ -235,7 +279,7 @@ extension ContentView {
             let profile = PhonePreviewProfile.forDevice(vm.device)
             let baseWidth: CGFloat = 326
             let baseHeight = baseWidth * profile.aspectRatio
-            let scale = max(0.1, min(1, (proxy.size.width - 12) / baseWidth, (proxy.size.height - 12) / baseHeight))
+            let scale = max(0.1, min(1.25, (proxy.size.width - 12) / baseWidth, (proxy.size.height - 12) / baseHeight))
 
             ZStack {
                 RoundedRectangle(cornerRadius: profile.cornerRadius)
@@ -293,6 +337,8 @@ extension ContentView {
             }
             .frame(width: baseWidth, height: baseHeight)
             .modifier(PhoneFrameChrome(profile: profile))
+            // The iPhone keypad renders light glass keys regardless of the Mac's appearance.
+            .environment(\.colorScheme, .light)
             .scaleEffect(scale)
             .frame(width: baseWidth * scale, height: baseHeight * scale)
             .frame(maxWidth: .infinity, maxHeight: .infinity)

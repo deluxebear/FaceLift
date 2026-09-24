@@ -350,3 +350,4 @@
 "Target TelephonyUI version" = "目标 TelephonyUI 版本";
 "%@ cards · %@ selected" = "%@ 张卡片 · 已选 %@ 张";
 "No Cards Yet" = "还没有卡片";
+"Previewing at %@ size" = "按 %@ 尺寸预览";

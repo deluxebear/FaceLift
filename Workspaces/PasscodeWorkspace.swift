@@ -3,50 +3,6 @@ import AppKit
 import UniformTypeIdentifiers
 
 extension ContentView {
-    var passcodePreview: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text(L("Live Preview"))
-                    .font(.title2.weight(.bold))
-                    .foregroundStyle(Color.primary)
-                Spacer()
-            }
-            .padding(.bottom, 13)
-            Text(vm.device?.connected == true ? (vm.device?.name ?? "iPhone") : L("iPhone Preview"))
-                .font(.caption)
-                .foregroundStyle(Color.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.top, 11)
-
-            phoneMockupContainer {
-                if vm.passcodeTabMode == .applyTheme {
-                    applyThemeDialerCanvas
-                } else {
-                    creatorDialerCanvas
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            if vm.passcodeTabMode == .applyTheme {
-                Button { openPasscodeThemePicker() } label: {
-                    Label(vm.loadedPasscodeTheme == nil ? L("Choose .passthm File...") : L("Change..."), systemImage: "folder.badge.plus")
-                        .frame(maxWidth: .infinity)
-                }
-                .faceLiftSecondaryButton()
-            } else {
-                Button { openSavePasscodeThemePanel() } label: {
-                    Label(L("Export .passthm..."), systemImage: "square.and.arrow.up")
-                        .frame(maxWidth: .infinity)
-                }
-                .faceLiftSecondaryButton()
-                .disabled(vm.effectiveCreatorKeys.isEmpty)
-            }
-        }
-        .padding(16)
-    }
-}
-
-extension ContentView {
     var passcodeWorkspace: some View {
         ScrollView {
             passcodeThemeWorkspaceView
@@ -165,6 +121,16 @@ extension ContentView {
         return true
     }
     
+    func handleThemeDrop(providers: [NSItemProvider]) -> Bool {
+        guard let provider = providers.first else { return false }
+        provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in
+            let url = (item as? URL) ?? (item as? Data).flatMap { URL(dataRepresentation: $0, relativeTo: nil) }
+            guard let url else { return }
+            Task { @MainActor in vm.inspectPasscodeTheme(url: url) }
+        }
+        return true
+    }
+
     func handleIndividualKeyDrop(digit: String, providers: [NSItemProvider]) -> Bool {
         guard let provider = providers.first else { return false }
         loadImage(from: provider) { img in

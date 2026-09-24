@@ -13,6 +13,7 @@ struct ContentView: View {
     @State var dragKeyStartOffsets: [String: CGPoint] = [:]
     @State var isTargetedPoster = false
     @State var isTargetedTheme = false
+    @State var isCanvasTargeted = false
 
     // Forwarders so workspace code keeps reading and writing window state
     // by its original names.
@@ -115,7 +116,7 @@ struct ContentView: View {
     private var detail: some View {
         switch window.section {
         case .cards: walletWorkspace
-        case .passcode, .creator: passcodeWorkspace
+        case .passcode, .creator: themeCanvas
         case .device: deviceWorkspace
         }
     }
@@ -124,7 +125,7 @@ struct ContentView: View {
     private var inspectorContent: some View {
         switch window.section {
         case .cards: walletPreview
-        case .passcode, .creator: passcodePreview
+        case .passcode, .creator: passcodeWorkspace
         case .device: EmptyView()
         }
     }
@@ -195,6 +196,8 @@ struct ContentView: View {
             vm.queueSkinPulls(ids: vm.cards.filter(\.isSelected).map(\.id), replacingStored: true)
         case .addCardsManually:
             vm.showAddCardSheet = true
+        case .exportTheme:
+            openSavePasscodeThemePanel()
         case .clearTheme:
             vm.loadedPasscodeTheme = nil
         case .clearCreator:

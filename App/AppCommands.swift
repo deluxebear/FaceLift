@@ -30,6 +30,9 @@ struct FaceLiftCommands: Commands {
             Button(L("Choose Poster...")) { window?.send(.choosePoster) }
                 .keyboardShortcut("o", modifiers: [.command, .shift])
                 .disabled(isBlocked || window?.section != .creator)
+            Button(L("Export .passthm...")) { window?.send(.exportTheme) }
+                .keyboardShortcut("e")
+                .disabled(isBlocked || window?.section != .creator || vm?.canExportCreator != true)
             Button(L("Set Skin for Selected Cards...")) { window?.send(.setSkinForSelected) }
                 .disabled(isBlocked || window?.section != .cards || vm?.canSetSkinForSelected != true)
         }

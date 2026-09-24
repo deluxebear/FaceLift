@@ -14,6 +14,7 @@ extension AppViewModel {
     var canFlashCards: Bool { readyToFlashCount > 0 && !isBusy && isConnected }
     var canFlashPasscode: Bool { loadedPasscodeTheme != nil && !isBusy && device?.isUSBConnectedIPhone == true }
     var canFlashCreator: Bool { !effectiveCreatorKeys.isEmpty && !isBusy && device?.isUSBConnectedIPhone == true }
+    var canExportCreator: Bool { !effectiveCreatorKeys.isEmpty }
     var canRestorePasscode: Bool {
         device?.isUSBConnectedIPhone == true && device?.passcodeCacheVersion != nil && !isBusy
     }

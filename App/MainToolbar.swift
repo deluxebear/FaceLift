@@ -55,6 +55,11 @@ extension ContentView {
                 Label(vm.creatorPosterImage == nil ? L("Choose Poster...") : L("Change Poster..."), systemImage: "photo")
             }
             .help(vm.creatorPosterImage == nil ? L("Choose Poster...") : L("Change Poster..."))
+            Button { perform(.exportTheme) } label: {
+                Label(L("Export .passthm..."), systemImage: "square.and.arrow.up")
+            }
+            .disabled(!vm.canExportCreator)
+            .help(L("Export .passthm..."))
             targetVersionPicker
         case .device:
             Button { perform(.refreshDevice) } label: {

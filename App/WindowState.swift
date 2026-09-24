@@ -15,6 +15,7 @@ enum WindowAction: Equatable {
     case addCardsManually
     case clearTheme
     case clearCreator
+    case exportTheme
 }
 
 /// Window-level UI state shared between the main window and menu commands
