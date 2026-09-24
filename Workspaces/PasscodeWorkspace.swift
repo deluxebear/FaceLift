@@ -3,29 +3,6 @@ import AppKit
 import UniformTypeIdentifiers
 
 extension ContentView {
-    var passcodeWorkspace: some View {
-        ScrollView {
-            passcodeThemeWorkspaceView
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(20)
-        }
-    }
-}
-
-extension ContentView {
-    
-    var passcodeThemeWorkspaceView: some View {
-        passcodeThemeCreatorWorkspaceView
-    }
-    
-    
-    
-    
-    
-    
-}
-
-extension ContentView {
     func openPasscodeThemePicker() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [

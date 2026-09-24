@@ -356,3 +356,10 @@
 "Keyboard Language" = "键盘语言";
 "Font Weight" = "字体粗细";
 "Flash Target" = "写入目标";
+"Mode" = "模式";
+"No poster selected" = "未选择海报";
+"Framing" = "取景";
+"Drag on the preview to reposition" = "在预览上拖动以调整位置";
+"Configured" = "已设置";
+"%@ of 10" = "%@ / 10";
+"Key %@" = "按键 %@";

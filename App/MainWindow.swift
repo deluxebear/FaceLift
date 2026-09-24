@@ -11,7 +11,6 @@ struct ContentView: View {
     @State var previewCardIndex = 0
     @State var dragOffsetStart: CGPoint = .zero
     @State var dragKeyStartOffsets: [String: CGPoint] = [:]
-    @State var isTargetedPoster = false
     @State var isCanvasTargeted = false
 
     // Forwarders so workspace code keeps reading and writing window state
@@ -125,7 +124,7 @@ struct ContentView: View {
         switch window.section {
         case .cards: walletPreview
         case .passcode: applyThemeInspector
-        case .creator: passcodeWorkspace
+        case .creator: creatorInspector
         case .device: EmptyView()
         }
     }

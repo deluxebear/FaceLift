@@ -253,10 +253,7 @@ extension ContentView {
                 }
                 if customIndividualImage != nil {
                     Button(L("Reset Position & Zoom")) {
-                        vm.creatorIndividualOffsets[btn.digit] = .zero
-                        vm.creatorIndividualZooms[btn.digit] = 1.0
-                        dragKeyStartOffsets[btn.digit] = .zero
-                        vm.updateIndividualKey(digit: btn.digit)
+                        resetIndividualKey(btn.digit)
                     }
                     Button(L("Clear Key %@", btn.digit)) {
                         vm.clearIndividualKey(digit: btn.digit)
