@@ -216,6 +216,7 @@
 "Failed to package theme for flashing." = "Failed to package theme for flashing.";
 "Created Theme" = "Created Theme";
 "Loaded %@ real card(s) from storage." = "Loaded %@ real card(s) from storage.";
+"Migrated %@ card(s) to %@." = "Migrated %@ card(s) to %@.";
 "Added card: %@" = "Added card: %@";
 "Removed card: %@" = "Removed card: %@";
 "Cleared all cards." = "Cleared all cards.";

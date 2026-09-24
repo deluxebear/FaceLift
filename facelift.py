@@ -45,9 +45,14 @@ TARGET_ASSETS = [
 
 CACHE_FILES = ["FrontFace", "Preview"]
 
-CARDS_STORE_PATH = Path.home() / ".facelift_cards.json"
-LEGACY_AIRCARD_STORE_PATH = Path.home() / ".aircard_cards.json"
-LEGACY_STORE_PATH = Path.home() / ".lumicards_cards.json"
+# Card hashes live in exactly one place, shared with the macOS app. The legacy
+# dotfiles are only read once, to migrate older installs.
+CARDS_STORE_PATH = Path.home() / "Library" / "Application Support" / "FaceLift" / "cards.json"
+LEGACY_STORE_PATHS = [
+    Path.home() / ".facelift_cards.json",
+    Path.home() / ".aircard_cards.json",
+    Path.home() / ".lumicards_cards.json",
+]
 PREDEFINED_CARDS = []
 
 CARD_REGEXES = [
@@ -59,21 +64,45 @@ CARD_REGEXES = [
 
 def load_saved_cards() -> list[str]:
     """Loads saved card hashes from local storage."""
-    for store in [CARDS_STORE_PATH, LEGACY_AIRCARD_STORE_PATH, LEGACY_STORE_PATH]:
-        if store.is_file():
-            try:
-                data = json.loads(store.read_text("utf-8"))
-                if isinstance(data, list) and data:
-                    return data
-            except Exception:
-                pass
+    if CARDS_STORE_PATH.is_file():
+        try:
+            data = json.loads(CARDS_STORE_PATH.read_text("utf-8"))
+            if isinstance(data, list):
+                return data
+        except Exception:
+            pass
+        return list(PREDEFINED_CARDS)
+    migrated = migrate_legacy_cards()
+    if migrated:
+        save_cards(migrated)
+        return migrated
     return list(PREDEFINED_CARDS)
+
+
+def migrate_legacy_cards() -> list[str]:
+    """Collects hashes from legacy dotfiles and renames them to *.migrated."""
+    found: list[str] = []
+    for store in LEGACY_STORE_PATHS:
+        if not store.is_file():
+            continue
+        try:
+            data = json.loads(store.read_text("utf-8"))
+            if isinstance(data, list):
+                found.extend(h for h in data if isinstance(h, str) and h not in found)
+        except Exception:
+            pass
+        try:
+            store.rename(store.with_name(store.name + ".migrated"))
+        except OSError:
+            pass
+    return found
 
 
 def save_cards(cards: list[str]):
     """Saves unique card hashes to local storage."""
     try:
         unique = list(dict.fromkeys(cards))
+        CARDS_STORE_PATH.parent.mkdir(parents=True, exist_ok=True)
         CARDS_STORE_PATH.write_text(json.dumps(unique, indent=2), encoding="utf-8")
     except Exception:
         pass

@@ -50,10 +50,19 @@ class AppViewModel: ObservableObject {
     
     private var scanProcess: Process?
     private let scriptDir: String
-    private let storageKey = "jetems.facelift.savedCards"
-    private let legacyStorageKey0 = "mak5er.aircard.savedCards"
-    private let legacyStorageKey1 = "mak5er.savedCards"
-    private let legacyStorageKey2 = "LumiCards.savedCards"
+    // Card hashes live in exactly one place: Application Support/FaceLift/cards.json.
+    // The keys and dotfiles below are only read once, to migrate older installs.
+    private static let legacyStorageKeys = [
+        "jetems.facelift.savedCards",
+        "mak5er.aircard.savedCards",
+        "mak5er.savedCards",
+        "LumiCards.savedCards",
+    ]
+    private static let legacyCardFiles = [
+        "~/.facelift_cards.json",
+        "~/.aircard_cards.json",
+        "~/.lumicards_cards.json",
+    ]
     
     nonisolated static let cardRegexes: [NSRegularExpression] = [
         try! NSRegularExpression(pattern: "/(?:Cards|Passes/Cards)/([-A-Za-z0-9_+=]{20,44})(?:\\.pkpass|\\.cache|\\.pkcache|/|\\s|\"|'|\\)|,|$)"),
@@ -207,26 +216,23 @@ class AppViewModel: ObservableObject {
     
     // MARK: - Persistence
     
+    static var cardsStoreURL: URL {
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        return support.appendingPathComponent("FaceLift/cards.json")
+    }
+
     func loadSavedCards() {
         var loaded: [String] = []
-        
-        if let saved = UserDefaults.standard.stringArray(forKey: storageKey), !saved.isEmpty {
-            loaded.append(contentsOf: saved)
-        } else if let saved = UserDefaults.standard.stringArray(forKey: legacyStorageKey0), !saved.isEmpty {
-            loaded.append(contentsOf: saved)
-        } else if let saved = UserDefaults.standard.stringArray(forKey: legacyStorageKey1), !saved.isEmpty {
-            loaded.append(contentsOf: saved)
-        } else if let saved = UserDefaults.standard.stringArray(forKey: legacyStorageKey2), !saved.isEmpty {
-            loaded.append(contentsOf: saved)
-        }
-        
-        for p in ["~/.facelift_cards.json", "~/.aircard_cards.json", "~/.lumicards_cards.json"] {
-            let jsonPath = NSString(string: p).expandingTildeInPath
-            if let data = try? Data(contentsOf: URL(fileURLWithPath: jsonPath)),
-               let jsonHashes = try? JSONDecoder().decode([String].self, from: data) {
-                for h in jsonHashes where !loaded.contains(h) {
-                    loaded.append(h)
-                }
+        let store = Self.cardsStoreURL
+
+        if let data = try? Data(contentsOf: store),
+           let hashes = try? JSONDecoder().decode([String].self, from: data) {
+            loaded = hashes
+        } else {
+            loaded = Self.migrateLegacyCards()
+            if !loaded.isEmpty {
+                Self.writeCards(loaded)
+                log("Migrated %@ card(s) to %@.", "\(loaded.count)", store.path)
             }
         }
         
@@ -351,13 +357,41 @@ class AppViewModel: ObservableObject {
     }
     
     func saveCards() {
-        let hashes = cards.map { $0.id }
-        UserDefaults.standard.set(hashes, forKey: storageKey)
-        
-        let jsonPath = NSString(string: "~/.facelift_cards.json").expandingTildeInPath
+        Self.writeCards(cards.map { $0.id })
+    }
+
+    private static func writeCards(_ hashes: [String]) {
+        let store = cardsStoreURL
+        try? FileManager.default.createDirectory(at: store.deletingLastPathComponent(), withIntermediateDirectories: true)
         if let data = try? JSONEncoder().encode(hashes) {
-            try? data.write(to: URL(fileURLWithPath: jsonPath), options: .atomic)
+            try? data.write(to: store, options: .atomic)
         }
+    }
+
+    /// Collects hashes from pre-cards.json storage, then retires those sources
+    /// (UserDefaults keys removed, dotfiles renamed to *.migrated) so they are
+    /// never read again.
+    private static func migrateLegacyCards() -> [String] {
+        var loaded: [String] = []
+        let defaults = UserDefaults.standard
+        if let saved = legacyStorageKeys.lazy.compactMap({ defaults.stringArray(forKey: $0) }).first(where: { !$0.isEmpty }) {
+            loaded.append(contentsOf: saved)
+        }
+        let fm = FileManager.default
+        for p in legacyCardFiles {
+            let path = NSString(string: p).expandingTildeInPath
+            guard let data = fm.contents(atPath: path) else { continue }
+            if let hashes = try? JSONDecoder().decode([String].self, from: data) {
+                for h in hashes where !loaded.contains(h) {
+                    loaded.append(h)
+                }
+            }
+            try? fm.moveItem(atPath: path, toPath: path + ".migrated")
+        }
+        for key in legacyStorageKeys {
+            defaults.removeObject(forKey: key)
+        }
+        return loaded
     }
     
     func addCardHash(_ raw: String) -> (added: Int, rejected: [String]) {

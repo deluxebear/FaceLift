@@ -216,6 +216,7 @@
 "Failed to package theme for flashing." = "无法打包主题以写入。";
 "Created Theme" = "自制主题";
 "Loaded %@ real card(s) from storage." = "已从本地载入 %@ 张卡片。";
+"Migrated %@ card(s) to %@." = "已将 %@ 张卡片迁移到 %@。";
 "Added card: %@" = "已添加卡片：%@";
 "Removed card: %@" = "已移除卡片：%@";
 "Cleared all cards." = "已清除全部卡片。";
