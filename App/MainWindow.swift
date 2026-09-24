@@ -89,8 +89,8 @@ struct ContentView: View {
     }
 
     private func windowLayout(width: CGFloat) -> some View {
-        // Keep every preview the same width while leaving room for three minimum-size cards.
-        let threeColumnWorkspaceWidth: CGFloat = 3 * 210 + 2 * 16 + 2 * 20
+        // Three 210-point cards, two 16-point gaps, and 20-point padding on both sides.
+        let threeColumnWorkspaceWidth: CGFloat = 702
         let preferredSidebarWidth: CGFloat = 210
         let inspectorWidth = min(400, max(280, width - preferredSidebarWidth - threeColumnWorkspaceWidth))
 
