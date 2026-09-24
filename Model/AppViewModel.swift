@@ -10,7 +10,7 @@ class AppViewModel: ObservableObject {
     @Published var loadedPasscodeTheme: PasscodeThemeInfo? = nil
     @Published var isInspectingTheme = false
     @Published var targetTelephonyVersion: String = "TelephonyUI-10"
-    @Published var passcodeLanguageTarget: PasscodeLanguageTarget = .all
+    @Published var passcodeLanguageTarget: PasscodeLanguageTarget = .macOSPreferred
     @Published var passcodeBoldTarget: PasscodeBoldTarget = .both
     
     // Theme Creator Properties
@@ -238,7 +238,7 @@ class AppViewModel: ObservableObject {
         loaded.removeAll { dummyHashes.contains($0) || ($0.contains("-") && $0.count == 36) }
         
         self.cards = loaded.map { id in
-            var card = CardItem(id: id, isSelected: true)
+            var card = CardItem(id: id)
             let stored = Self.storedSkinURL(for: id)
             if FileManager.default.fileExists(atPath: stored.path),
                let image = NSImage(contentsOf: stored) {
@@ -368,7 +368,7 @@ class AppViewModel: ObservableObject {
             let clean = comp.trimmingCharacters(in: .whitespacesAndNewlines).trimmingCharacters(in: CharacterSet(charactersIn: "."))
             let validHash = clean.range(of: "^[-A-Za-z0-9_+=]{16,64}$", options: .regularExpression) != nil
             if validHash && !cards.contains(where: { $0.id == clean }) {
-                cards.append(CardItem(id: clean, isSelected: true))
+                cards.append(CardItem(id: clean))
                 addedCount += 1
                 log("Added card: %@", clean)
             } else if !comp.isEmpty {
@@ -572,7 +572,7 @@ class AppViewModel: ObservableObject {
                                     
                                     await MainActor.run {
                                         if !self.cards.contains(where: { $0.id == candidate }) {
-                                            self.cards.append(CardItem(id: candidate, isSelected: true))
+                                            self.cards.append(CardItem(id: candidate))
                                             self.saveCards()
                                             self.log("Found card: %@", candidate)
                                             self.queueSkinPulls(ids: [candidate], replacingStored: false)

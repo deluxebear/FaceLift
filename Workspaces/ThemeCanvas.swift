@@ -2,6 +2,24 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
+private struct KeypadDigitLabel: View {
+    let button: KeypadButtonGeometry
+
+    var body: some View {
+        VStack(spacing: 0) {
+            Text(button.digit)
+                .font(.system(size: 30, weight: .light))
+            if !button.letters.isEmpty {
+                Text(button.letters)
+                    .font(.system(size: 9, weight: .semibold))
+                    .tracking(1)
+            }
+        }
+        .foregroundStyle(.white)
+        .shadow(color: .black.opacity(0.75), radius: 2, y: 1)
+    }
+}
+
 extension ContentView {
     /// Lock Screen / Creator detail area: the phone mockup centered on a
     /// canvas that also accepts the page's file drops.
@@ -27,7 +45,7 @@ extension ContentView {
         }
         .padding(24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .underPageBackgroundColor))
+        .background(Color(nsColor: .textBackgroundColor))
         .overlay {
             if isCanvasTargeted {
                 Rectangle().strokeBorder(Color.brand, lineWidth: 3)
@@ -67,27 +85,16 @@ extension ContentView {
                     }
                     
                     Circle()
-                        .stroke(Color.white.opacity(0.25), lineWidth: 0.8)
+                        .strokeBorder(Color.white.opacity(0.65), lineWidth: 1)
                         .frame(width: KeypadLayout.buttonDiameter, height: KeypadLayout.buttonDiameter)
                     
-                    VStack(spacing: 1) {
-                        Text(btn.digit)
-                            .font(.system(size: 28, weight: .light))
-                            .foregroundColor(.white)
-                        if !btn.letters.isEmpty {
-                            Text(btn.letters)
-                                .font(.system(size: 9, weight: .semibold))
-                                .tracking(1)
-                                .foregroundColor(.white.opacity(0.9))
-                        }
-                    }
+                    KeypadDigitLabel(button: btn)
                 }
                 .frame(width: KeypadLayout.buttonDiameter, height: KeypadLayout.buttonDiameter)
                 .position(x: centerX, y: centerY)
             }
         }
         .frame(width: KeypadLayout.gridWidth, height: KeypadLayout.gridHeight)
-        .faceLiftGlassGroup()
     }
 
     func scaledPosterDimensions(for poster: NSImage) -> (width: CGFloat, height: CGFloat) {
@@ -129,7 +136,6 @@ extension ContentView {
             }
         }
         .frame(width: KeypadLayout.gridWidth, height: KeypadLayout.gridHeight)
-        .faceLiftGlassGroup()
         .clipped()
         .contentShape(Rectangle())
         .gesture(
@@ -171,14 +177,14 @@ extension ContentView {
                     }
                     
                     Circle()
-                        .stroke(Color.white.opacity(0.25), lineWidth: 0.8)
+                        .strokeBorder(Color.white.opacity(0.65), lineWidth: 1)
                         .frame(width: KeypadLayout.buttonDiameter, height: KeypadLayout.buttonDiameter)
                 } else {
-                    // Seamless Poster mode: frosted translucent circle indicator
+                    // Seamless Poster mode: a light outline keeps the artwork visible.
                     KeypadKeySurface()
                     
                     Circle()
-                        .stroke(Color.white.opacity(0.3), lineWidth: 1)
+                        .strokeBorder(Color.white.opacity(0.65), lineWidth: 1)
                         .frame(width: KeypadLayout.buttonDiameter, height: KeypadLayout.buttonDiameter)
                 }
             } else {
@@ -194,24 +200,14 @@ extension ContentView {
                 }
                 
                 Circle()
-                    .stroke(isSelected ? Color.brand : Color.white.opacity(0.3), lineWidth: isSelected ? 2.5 : 1)
+                    .strokeBorder(isSelected ? Color.brand : Color.white.opacity(0.65), lineWidth: isSelected ? 2.5 : 1)
                     .frame(width: KeypadLayout.buttonDiameter, height: KeypadLayout.buttonDiameter)
                     .shadow(color: isSelected ? Color.brand.opacity(0.8) : Color.clear, radius: 4)
             }
             
             // Authentic Digits & Letters Typography
             if !(vm.creatorUsesDefaultPoster && vm.creatorSubMode == .posterSlice) {
-                VStack(spacing: 1) {
-                    Text(btn.digit)
-                        .font(.system(size: 28, weight: .light))
-                        .foregroundColor(.white)
-                    if !btn.letters.isEmpty {
-                        Text(btn.letters)
-                            .font(.system(size: 9, weight: .semibold))
-                            .tracking(1)
-                            .foregroundColor(.white.opacity(0.9))
-                    }
-                }
+                KeypadDigitLabel(button: btn)
             }
         }
         .frame(width: KeypadLayout.buttonDiameter, height: KeypadLayout.buttonDiameter)

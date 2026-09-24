@@ -21,6 +21,8 @@ struct SettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .background(Color(nsColor: .textBackgroundColor))
         .preferredColorScheme(appearance.colorScheme)
         .frame(width: 420)
         .fixedSize(horizontal: false, vertical: true)

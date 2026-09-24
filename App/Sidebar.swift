@@ -21,6 +21,8 @@ struct SidebarView: View {
             }
         }
         .listStyle(.sidebar)
+        .scrollContentBackground(.hidden)
+        .background(Color.sidePanelBackground)
     }
 }
 

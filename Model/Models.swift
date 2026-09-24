@@ -43,7 +43,7 @@ struct DeviceInfo: Codable {
 
 struct CardItem: Identifiable, Hashable {
     let id: String
-    var isSelected: Bool = true
+    var isSelected: Bool = false
     var customImageURL: URL? = nil
     var customImage: NSImage? = nil
     
@@ -112,6 +112,7 @@ enum PasscodeLanguageTarget: String, CaseIterable, Identifiable {
     case de = "German (de)"
     case fr = "French (fr)"
     case pl = "Polish (pl)"
+    case nl = "Dutch (nl)"
     case it = "Italian (it)"
     case pt = "Portuguese (pt)"
     case tr = "Turkish (tr)"
@@ -124,6 +125,37 @@ enum PasscodeLanguageTarget: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     @MainActor var title: String { L(rawValue) }
+
+    static var macOSPreferred: Self {
+        guard let identifier = Locale.preferredLanguages.first else { return .all }
+        return forLanguageIdentifier(identifier)
+    }
+
+    static func forLanguageIdentifier(_ identifier: String) -> Self {
+        let language = identifier
+            .split(whereSeparator: { $0 == "-" || $0 == "_" })
+            .first
+            .map { String($0).lowercased() } ?? ""
+        switch language {
+        case "uk": return .uk
+        case "ru": return .ru
+        case "en": return .en
+        case "es": return .es
+        case "de": return .de
+        case "fr": return .fr
+        case "pl": return .pl
+        case "nl": return .nl
+        case "it": return .it
+        case "pt": return .pt
+        case "tr": return .tr
+        case "ja": return .ja
+        case "ko": return .ko
+        case "zh": return .zh
+        case "ar": return .ar
+        case "he": return .he
+        default: return .other
+        }
+    }
     
     var code: String {
         switch self {
@@ -136,6 +168,7 @@ enum PasscodeLanguageTarget: String, CaseIterable, Identifiable {
         case .de: return "de"
         case .fr: return "fr"
         case .pl: return "pl"
+        case .nl: return "nl"
         case .it: return "it"
         case .pt: return "pt"
         case .tr: return "tr"

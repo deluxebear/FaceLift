@@ -20,44 +20,13 @@ enum AppAppearanceChoice: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - Liquid Glass Design System
-//
-// Page content uses system styles; Liquid Glass is kept only for the simulated
-// iOS keypad. macOS 26+ renders real glass (glassEffect / GlassEffectContainer);
-// macOS 14/15 fall back to translucent fills so the deployment target stays 14.
-
-enum GlassDesign {
-    static let supportsGlass: Bool = {
-        if #available(macOS 26.0, *) { return true }
-        return false
-    }()
-}
-
-extension View {
-    /// Groups sibling glass shapes so nearby surfaces blend and morph.
-    @ViewBuilder
-    func faceLiftGlassGroup(spacing: CGFloat = 12) -> some View {
-        if #available(macOS 26.0, *) {
-            GlassEffectContainer(spacing: spacing) { self }
-        } else {
-            self
-        }
-    }
-}
-
-/// Translucent keypad key surface: real interactive Liquid Glass on macOS 26+,
-/// a white translucent circle on older systems.
+/// A dark, nearly transparent key surface keeps the white labels legible
+/// without covering the lock-screen artwork with opaque glass discs.
 struct KeypadKeySurface: View {
     var body: some View {
-        if #available(macOS 26.0, *) {
-            Color.clear
-                .frame(width: KeypadLayout.buttonDiameter, height: KeypadLayout.buttonDiameter)
-                .glassEffect(Glass.regular.interactive(), in: Circle())
-        } else {
-            Circle()
-                .fill(Color.white.opacity(0.18))
-                .frame(width: KeypadLayout.buttonDiameter, height: KeypadLayout.buttonDiameter)
-        }
+        Circle()
+            .fill(Color.black.opacity(0.16))
+            .frame(width: KeypadLayout.buttonDiameter, height: KeypadLayout.buttonDiameter)
     }
 }
 
@@ -69,6 +38,13 @@ extension Color {
         appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
             ? NSColor(srgbRed: 0x4D / 255.0, green: 0x8D / 255.0, blue: 0xFF / 255.0, alpha: 1)
             : NSColor(srgbRed: 0x14 / 255.0, green: 0x66 / 255.0, blue: 0xF2 / 255.0, alpha: 1)
+    })
+
+    /// Opaque navigation sidebar surface, including the area below its rows.
+    static let sidePanelBackground = Color(nsColor: NSColor(name: "FaceLiftSidePanelBackground") { appearance in
+        appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+            ? NSColor(srgbRed: 0x22 / 255.0, green: 0x23 / 255.0, blue: 0x27 / 255.0, alpha: 1)
+            : NSColor(srgbRed: 0xF7 / 255.0, green: 0xF8 / 255.0, blue: 0xFA / 255.0, alpha: 1)
     })
 }
 

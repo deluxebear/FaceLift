@@ -105,11 +105,22 @@ struct ContentView: View {
                 .toolbar { toolbarContent }
                 .inspector(isPresented: $window.isInspectorPresented) {
                     inspectorContent
+                        .scrollContentBackground(.hidden)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                        .background(Color(nsColor: .textBackgroundColor))
+                        .overlay(alignment: .leading) {
+                            Color(nsColor: .separatorColor)
+                                .frame(width: 1)
+                                .allowsHitTesting(false)
+                        }
+                        .overlay(alignment: .top) {
+                            Color(nsColor: .separatorColor)
+                                .frame(height: 1)
+                                .allowsHitTesting(false)
+                        }
                         .inspectorColumnWidth(min: inspectorWidth, ideal: inspectorWidth, max: inspectorWidth)
                 }
         }
-        // Keep the window toolbar on one surface during the inspector's first render.
-        .toolbarBackground(Color(nsColor: .textBackgroundColor), for: .windowToolbar)
     }
 
     @ViewBuilder

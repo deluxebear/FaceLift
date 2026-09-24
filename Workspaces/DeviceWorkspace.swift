@@ -51,6 +51,8 @@ extension ContentView {
             }
         }
         .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .background(Color(nsColor: .textBackgroundColor))
     }
 
     private func deviceSubtitle(_ device: DeviceInfo?) -> String {
