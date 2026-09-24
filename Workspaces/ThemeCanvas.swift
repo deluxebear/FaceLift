@@ -74,21 +74,24 @@ extension ContentView {
                 let centerY = cellY + KeypadLayout.rowHeight / 2.0
                 
                 ZStack {
-                    KeypadKeySurface()
-                    
+                    // A theme key image replaces the whole stock button,
+                    // so the default surface, outline and label only show
+                    // when no theme image is available for this digit.
                     if let img = vm.loadedPasscodeTheme?.keysPreview[btn.digit] {
                         Image(nsImage: img)
                             .resizable()
                             .aspectRatio(contentMode: .fill)
                             .frame(width: KeypadLayout.buttonDiameter, height: KeypadLayout.buttonDiameter)
                             .clipShape(Circle())
+                    } else {
+                        KeypadKeySurface()
+
+                        Circle()
+                            .strokeBorder(Color.white.opacity(0.65), lineWidth: 1)
+                            .frame(width: KeypadLayout.buttonDiameter, height: KeypadLayout.buttonDiameter)
+
+                        KeypadDigitLabel(button: btn)
                     }
-                    
-                    Circle()
-                        .strokeBorder(Color.white.opacity(0.65), lineWidth: 1)
-                        .frame(width: KeypadLayout.buttonDiameter, height: KeypadLayout.buttonDiameter)
-                    
-                    KeypadDigitLabel(button: btn)
                 }
                 .frame(width: KeypadLayout.buttonDiameter, height: KeypadLayout.buttonDiameter)
                 .position(x: centerX, y: centerY)
@@ -166,19 +169,19 @@ extension ContentView {
             if vm.creatorSubMode == .posterSlice {
                 if vm.creatorMaskToCircles {
                     // Circular Cutouts mode: display sliced circular preview
-                    KeypadKeySurface()
-                    
                     if let img = slicedImage {
                         Image(nsImage: img)
                             .resizable()
                             .aspectRatio(contentMode: .fill)
                             .frame(width: KeypadLayout.buttonDiameter, height: KeypadLayout.buttonDiameter)
                             .clipShape(Circle())
+                    } else {
+                        KeypadKeySurface()
+
+                        Circle()
+                            .strokeBorder(Color.white.opacity(0.65), lineWidth: 1)
+                            .frame(width: KeypadLayout.buttonDiameter, height: KeypadLayout.buttonDiameter)
                     }
-                    
-                    Circle()
-                        .strokeBorder(Color.white.opacity(0.65), lineWidth: 1)
-                        .frame(width: KeypadLayout.buttonDiameter, height: KeypadLayout.buttonDiameter)
                 } else {
                     // Seamless Poster mode: a light outline keeps the artwork visible.
                     KeypadKeySurface()
@@ -190,23 +193,28 @@ extension ContentView {
             } else {
                 // Individual Keys mode
                 let isSelected = (vm.selectedKeyDigit == btn.digit)
-                KeypadKeySurface()
-                
                 if let img = customIndividualImage {
+                    // The key image replaces the stock button on device.
                     Image(nsImage: img)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
                         .frame(width: KeypadLayout.buttonDiameter, height: KeypadLayout.buttonDiameter)
+                } else {
+                    KeypadKeySurface()
                 }
-                
-                Circle()
-                    .strokeBorder(isSelected ? Color.brand : Color.white.opacity(0.65), lineWidth: isSelected ? 2.5 : 1)
-                    .frame(width: KeypadLayout.buttonDiameter, height: KeypadLayout.buttonDiameter)
-                    .shadow(color: isSelected ? Color.brand.opacity(0.8) : Color.clear, radius: 4)
+
+                if isSelected || customIndividualImage == nil {
+                    Circle()
+                        .strokeBorder(isSelected ? Color.brand : Color.white.opacity(0.65), lineWidth: isSelected ? 2.5 : 1)
+                        .frame(width: KeypadLayout.buttonDiameter, height: KeypadLayout.buttonDiameter)
+                        .shadow(color: isSelected ? Color.brand.opacity(0.8) : Color.clear, radius: 4)
+                }
             }
-            
-            // Authentic Digits & Letters Typography
-            if !(vm.creatorUsesDefaultPoster && vm.creatorSubMode == .posterSlice) {
+
+            // Stock digits & letters only for keys without artwork; exported
+            // key images replace the whole button, labels included.
+            let keyImage = vm.creatorSubMode == .posterSlice ? slicedImage : customIndividualImage
+            if keyImage == nil {
                 KeypadDigitLabel(button: btn)
             }
         }
