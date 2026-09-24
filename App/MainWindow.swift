@@ -44,6 +44,8 @@ struct ContentView: View {
                         .inspectorColumnWidth(min: 280, ideal: 320, max: 400)
                 }
         }
+        // Keep the window toolbar on one surface during the inspector's first render.
+        .toolbarBackground(Color(nsColor: .textBackgroundColor), for: .windowToolbar)
         .frame(minWidth: 900, minHeight: 600)
         .tint(Color.brand)
         .focusedSceneObject(vm)
