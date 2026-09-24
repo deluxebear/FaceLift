@@ -43,7 +43,7 @@
 ## Installation
 
 ### macOS (Universal DMG)
-1. Download **`FaceLift.dmg`** from [Releases](https://github.com/jetems/FaceLift/releases).
+1. Download **`FaceLift.dmg`** from [Releases](https://github.com/deluxebear/FaceLift/releases).
 2. Open `FaceLift.dmg` and drag **`FaceLift.app`** into your **Applications** folder.
 3. Fully compatible with both **Apple Silicon** and **Intel (x86)** Macs.
 
@@ -87,7 +87,7 @@
 ## Building from Source
 
 ```sh
-git clone https://github.com/jetems/FaceLift.git
+git clone https://github.com/deluxebear/FaceLift.git
 cd FaceLift
 chmod +x build.sh
 ./build.sh
@@ -97,7 +97,7 @@ This builds universal binaries (`arm64` + `x86_64`), bundles dependencies into `
 ---
 
 ## Contributors
-- **[@jetems](https://github.com/jetems)** (Developer & Maintainer of FaceLift)
+- **[@deluxebear](https://github.com/deluxebear)** (Developer & Maintainer of FaceLift)
 
 FaceLift is forked from **AirCard v1.2.3**, created by:
 - **[@mak5er](https://github.com/mak5er)** (Author of AirCard) — [GitHub](https://github.com/mak5er) · [Twitter / X](https://x.com/mak5er)

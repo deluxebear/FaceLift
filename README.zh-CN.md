@@ -43,7 +43,7 @@
 ## 安装
 
 ### macOS(通用 DMG)
-1. 从 [Releases](https://github.com/jetems/FaceLift/releases) 下载 **`FaceLift.dmg`**。
+1. 从 [Releases](https://github.com/deluxebear/FaceLift/releases) 下载 **`FaceLift.dmg`**。
 2. 打开 `FaceLift.dmg`,将 **`FaceLift.app`** 拖入**应用程序**文件夹。
 3. 完全兼容 **Apple Silicon** 与 **Intel (x86)** Mac。
 
@@ -87,7 +87,7 @@
 ## 从源码构建
 
 ```sh
-git clone https://github.com/jetems/FaceLift.git
+git clone https://github.com/deluxebear/FaceLift.git
 cd FaceLift
 chmod +x build.sh
 ./build.sh
@@ -97,7 +97,7 @@ chmod +x build.sh
 ---
 
 ## 贡献者
-- **[@jetems](https://github.com/jetems)**(FaceLift 开发者与维护者)
+- **[@deluxebear](https://github.com/deluxebear)**(FaceLift 开发者与维护者)
 
 FaceLift 分叉自 **AirCard v1.2.3**,原作者:
 - **[@mak5er](https://github.com/mak5er)**(AirCard 作者)— [GitHub](https://github.com/mak5er) · [Twitter / X](https://x.com/mak5er)
