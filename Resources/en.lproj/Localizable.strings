@@ -281,6 +281,7 @@
 "Apply or create a passcode theme" = "Apply or create a passcode theme";
 "My Cards" = "My Cards";
 "Search cards by hash or number" = "Search cards by hash or number";
+"Find Cards" = "Find Cards";
 "Supports %@" = "Supports %@";
 "Search hides %@ selected card(s) ready to flash. Flashing still includes them." = "Search hides %@ selected card(s) ready to flash. Flashing still includes them.";
 "Add Artwork" = "Add Artwork";

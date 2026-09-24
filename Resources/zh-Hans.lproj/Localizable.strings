@@ -281,6 +281,7 @@
 "Apply or create a passcode theme" = "导入或制作锁屏密码主题";
 "My Cards" = "我的卡片";
 "Search cards by hash or number" = "搜索卡片编号或哈希";
+"Find Cards" = "查找卡片";
 "Supports %@" = "支持 %@";
 "Search hides %@ selected card(s) ready to flash. Flashing still includes them." = "搜索隐藏了 %@ 张已选且可写入的卡片；写入时仍会包含它们。";
 "Add Artwork" = "添加卡面";

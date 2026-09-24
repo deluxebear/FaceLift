@@ -44,6 +44,9 @@ struct FaceLiftCommands: Commands {
         }
 
         CommandGroup(after: .sidebar) {
+            Button(L("Find Cards")) { window?.cardSearchFocusRequest += 1 }
+                .keyboardShortcut("f")
+                .disabled(isBlocked || window?.section != .cards)
             Button(window?.isInspectorPresented == true ? L("Hide Inspector") : L("Show Inspector")) { window?.isInspectorPresented.toggle() }
                 .keyboardShortcut("i", modifiers: [.command, .option])
                 .disabled(isBlocked || window?.section.hasInspector != true)

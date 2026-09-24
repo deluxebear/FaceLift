@@ -2,6 +2,43 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
+private struct CardSearchField: NSViewRepresentable {
+    @Binding var text: String
+    let placeholder: String
+    let focusRequest: Int
+
+    func makeNSView(context: Context) -> NSSearchField {
+        let field = NSSearchField()
+        field.placeholderString = placeholder
+        field.sendsSearchStringImmediately = true
+        field.delegate = context.coordinator
+        return field
+    }
+
+    func updateNSView(_ field: NSSearchField, context: Context) {
+        if field.stringValue != text { field.stringValue = text }
+        field.placeholderString = placeholder
+        if context.coordinator.handledFocusRequest != focusRequest {
+            context.coordinator.handledFocusRequest = focusRequest
+            DispatchQueue.main.async { field.window?.makeFirstResponder(field) }
+        }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(text: $text) }
+
+    final class Coordinator: NSObject, NSSearchFieldDelegate {
+        let text: Binding<String>
+        var handledFocusRequest = 0
+
+        init(text: Binding<String>) { self.text = text }
+
+        func controlTextDidChange(_ notification: Notification) {
+            guard let field = notification.object as? NSSearchField else { return }
+            text.wrappedValue = field.stringValue
+        }
+    }
+}
+
 struct WalletTileView: View {
     @Binding var card: CardItem
     let index: Int
@@ -126,6 +163,13 @@ extension ContentView {
                         .padding(.vertical, 2)
                         .background(Color.brand.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
                     Spacer(minLength: 4)
+                    CardSearchField(
+                        text: $cardSearch,
+                        placeholder: L("Search cards by hash or number"),
+                        focusRequest: window.cardSearchFocusRequest
+                    )
+                    .frame(minWidth: 150, idealWidth: 240, maxWidth: 280)
+                    .accessibilityLabel(Text(L("Search cards by hash or number")))
                     Menu {
                         Button(L("Select All")) { for i in vm.cards.indices { vm.cards[i].isSelected = true } }
                         Button(L("Deselect All")) { for i in vm.cards.indices { vm.cards[i].isSelected = false } }
@@ -202,7 +246,6 @@ extension ContentView {
                 .padding(.bottom, 24)
             }
         }
-        .searchable(text: $cardSearch, placement: .toolbar, prompt: Text(L("Search cards by hash or number")))
     }
 
     var filteredCardIndices: [Int] {

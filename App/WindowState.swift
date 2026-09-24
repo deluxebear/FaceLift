@@ -27,6 +27,7 @@ final class WindowState: ObservableObject {
     @Published var showCredits = false
     @Published var showRestorePasscodeConfirmation = false
     @Published var pendingAction: WindowAction?
+    @Published var cardSearchFocusRequest = 0
     /// Page whose content was last sent to the iPhone; picks the success alert text.
     @Published var lastFlashSection: WorkspaceSection?
 
