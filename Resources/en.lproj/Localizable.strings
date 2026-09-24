@@ -160,6 +160,9 @@
 "Assign Card Skin" = "Assign Card Skin";
 "Click to browse or drag image" = "Click to browse or drag image";
 "Include in flash" = "Include in flash";
+"Remove from flash" = "Remove from flash";
+"Selected for flash" = "Selected for flash";
+"Not selected for flash" = "Not selected for flash";
 "Card #%@" = "Card #%@";
 "Copied!" = "Copied!";
 "Copy full hash" = "Copy full hash";

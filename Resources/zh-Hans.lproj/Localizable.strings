@@ -160,6 +160,9 @@
 "Assign Card Skin" = "设置卡面";
 "Click to browse or drag image" = "点击选择，或直接拖入图片";
 "Include in flash" = "包含在本次写入中";
+"Remove from flash" = "从本次写入中移除";
+"Selected for flash" = "已选中用于写入";
+"Not selected for flash" = "未选中用于写入";
 "Card #%@" = "卡片 #%@";
 "Copied!" = "已复制";
 "Copy full hash" = "复制完整哈希";

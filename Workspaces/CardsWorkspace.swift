@@ -71,7 +71,10 @@ struct WalletTileView: View {
                         .foregroundStyle(card.isSelected ? Color.brand : Color.secondary)
                 }
                 .buttonStyle(.plain)
-                .help(L("Include in flash"))
+                .help(card.isSelected ? L("Remove from flash") : L("Include in flash"))
+                .accessibilityLabel(Text(L("Card #%@", String(index + 1))))
+                .accessibilityValue(Text(card.isSelected ? L("Selected for flash") : L("Not selected for flash")))
+                .accessibilityHint(Text(card.isSelected ? L("Remove from flash") : L("Include in flash")))
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(L("Card #%@", String(index + 1)))
