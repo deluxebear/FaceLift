@@ -2,6 +2,24 @@ import SwiftUI
 import AppKit
 import UniformTypeIdentifiers
 
+enum AppAppearanceChoice: String, CaseIterable, Identifiable {
+    case system
+    case light
+    case dark
+
+    static let storageKey = "FaceLift.appearance"
+
+    var id: String { rawValue }
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light: return .light
+        case .dark: return .dark
+        }
+    }
+}
+
 // MARK: - Liquid Glass Design System
 //
 // Page content uses system styles; Liquid Glass is kept only for the simulated

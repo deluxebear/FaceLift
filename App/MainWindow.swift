@@ -3,6 +3,7 @@ import AppKit
 import UniformTypeIdentifiers
 
 struct ContentView: View {
+    @AppStorage(AppAppearanceChoice.storageKey) private var appearance: AppAppearanceChoice = .system
     @StateObject var vm = AppViewModel()
     @StateObject var window = WindowState()
     @ObservedObject var language = AppLanguage.shared
@@ -33,6 +34,7 @@ struct ContentView: View {
             windowLayout(width: geometry.size.width)
         }
         .frame(minWidth: 900, minHeight: 600)
+        .preferredColorScheme(appearance.colorScheme)
         .tint(Color.brand)
         .focusedSceneObject(vm)
         .focusedSceneObject(window)

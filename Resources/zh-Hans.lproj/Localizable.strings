@@ -43,6 +43,9 @@
 "Deselect All" = "取消全选";
 "Clear All" = "全部清除";
 "Follow System" = "跟随系统";
+"Appearance" = "外观";
+"Light" = "浅色";
+"Dark" = "深色";
 "Language" = "界面语言";
 "Live Scanner Active" = "实时扫描已开启";
 "Double-click Side button (Apple Pay), pass Face ID, then tap your card." = "双击侧边按钮（Apple Pay），通过面容 ID，然后轻点卡片。";
