@@ -28,6 +28,12 @@ extension ContentView {
                     Button { vm.editLoadedThemeInCreator() } label: {
                         Label(L("Edit in Creator"), systemImage: "pencil.and.outline")
                     }
+                    Button { openPasscodeThemePicker() } label: {
+                        Label(L("Replace Theme..."), systemImage: "arrow.triangle.2.circlepath")
+                    }
+                    Button(role: .destructive) { vm.loadedPasscodeTheme = nil } label: {
+                        Label(L("Clear Theme"), systemImage: "xmark.circle")
+                    }
                 } else {
                     LabeledContent {
                         Button(L("Choose File...")) { openPasscodeThemePicker() }

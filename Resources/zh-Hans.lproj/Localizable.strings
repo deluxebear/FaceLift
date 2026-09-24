@@ -63,6 +63,7 @@
 "Export .passthm..." = "导出 .passthm...";
 "Target:" = "目标：";
 "Clear Theme" = "清除主题";
+"Replace Theme..." = "更换主题...";
 "Lock Screen Keypad Preview" = "锁屏键盘预览";
 "Custom Theme Loaded" = "已载入自定义主题";
 "Passcode Theme File" = "密码主题文件";
