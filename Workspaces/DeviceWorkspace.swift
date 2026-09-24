@@ -6,32 +6,42 @@ extension ContentView {
         let connected = device?.connected == true
         return Form {
             Section {
-                HStack(spacing: 14) {
+                HStack(spacing: 12) {
                     Image(systemName: "iphone")
                         .font(.largeTitle)
-                        .foregroundStyle(.tint)
+                        .foregroundStyle(.secondary)
+                        .overlay(alignment: .bottomTrailing) {
+                            Circle()
+                                .fill(deviceStatusColor(device))
+                                .frame(width: 10, height: 10)
+                                .overlay(Circle().stroke(Color(nsColor: .windowBackgroundColor), lineWidth: 2))
+                                .offset(x: 4, y: 2)
+                        }
                         .frame(width: 44)
-                    VStack(alignment: .leading, spacing: 3) {
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
                         Text(connected ? (device?.name ?? "iPhone") : L("No iPhone connected"))
                             .font(.title3.weight(.semibold))
-                        Label(
-                            connected ? (device?.isWiFi == true ? L("Connected via Wi-Fi") : L("Connected via USB")) : L("Waiting for device"),
-                            systemImage: connected ? "checkmark.circle.fill" : "circle.dotted"
-                        )
-                        .font(.callout)
-                        .foregroundStyle(connected ? deviceStatusColor(device) : Color.secondary)
+                        Text(deviceSubtitle(device))
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 .padding(.vertical, 4)
                 if connected {
                     LabeledContent(L("Model"), value: device?.product ?? "iPhone")
                     LabeledContent(L("iOS Version"), value: device?.version ?? "—")
+                    LabeledContent(L("Connection"), value: device?.isWiFi == true ? L("Wi-Fi") : L("USB"))
                 }
             }
             if connected && device?.isWiFi == true {
                 Section {
-                    Label(L("Reading card artwork requires USB. Reconnect with a cable."), systemImage: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.orange)
+                    Label {
+                        Text(L("Reading card artwork requires USB. Reconnect with a cable."))
+                    } icon: {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                    }
                 }
             }
             Section(L("How to connect")) {
@@ -41,5 +51,11 @@ extension ContentView {
             }
         }
         .formStyle(.grouped)
+    }
+
+    private func deviceSubtitle(_ device: DeviceInfo?) -> String {
+        guard device?.connected == true else { return L("Waiting for device") }
+        let via = device?.isWiFi == true ? L("Connected via Wi-Fi") : L("Connected via USB")
+        return "iOS \(device?.version ?? "—") · \(via)"
     }
 }

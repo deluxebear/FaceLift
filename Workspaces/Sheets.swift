@@ -4,14 +4,14 @@ import UniformTypeIdentifiers
 
 extension ContentView {
     func instructionRow(_ number: String, _ text: String) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 10) {
             Text(number)
-                .font(.body.weight(.bold))
-                .foregroundStyle(Color.brand)
-                .frame(width: 27, height: 27)
-                .background(Color.brand.opacity(0.12), in: Circle())
+                .font(.callout.weight(.semibold))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .frame(width: 22, height: 22)
+                .background(.quaternary, in: Circle())
             Text(text)
-                .foregroundStyle(Color.primary)
         }
     }
 }
