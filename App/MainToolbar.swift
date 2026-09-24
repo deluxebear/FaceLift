@@ -74,7 +74,7 @@ extension ContentView {
                       systemImage: "sparkles")
             }
             .labelStyle(.titleAndIcon)
-            .faceLiftProminentButton()
+            .buttonStyle(.borderedProminent)
             .disabled(!vm.canFlashCards)
         case .passcode:
             passcodeMoreMenu(clear: .clearTheme, clearTitle: L("Clear Theme"), clearDisabled: vm.loadedPasscodeTheme == nil)
@@ -82,7 +82,7 @@ extension ContentView {
                 Label(L("Flash Passcode Theme"), systemImage: "lock.shield.fill")
             }
             .labelStyle(.titleAndIcon)
-            .faceLiftProminentButton()
+            .buttonStyle(.borderedProminent)
             .disabled(!vm.canFlashPasscode)
         case .creator:
             passcodeMoreMenu(clear: .clearCreator, clearTitle: L("Clear All"),
@@ -91,7 +91,7 @@ extension ContentView {
                 Label(L("Flash to iPhone"), systemImage: "lock.shield.fill")
             }
             .labelStyle(.titleAndIcon)
-            .faceLiftProminentButton()
+            .buttonStyle(.borderedProminent)
             .disabled(!vm.canFlashCreator)
         case .device:
             EmptyView()

@@ -170,3 +170,44 @@ func deviceStatusColor(_ device: DeviceInfo?) -> Color {
     guard device?.connected == true else { return .gray }
     return device?.isWiFi == true ? .orange : .green
 }
+
+// MARK: - In-page notice
+
+/// Compact in-page notice (card scanning, hidden selection): control
+/// background with a hairline separator border.
+struct NoticeBar<Leading: View, Trailing: View>: View {
+    let title: String
+    var message: String? = nil
+    @ViewBuilder var leading: Leading
+    @ViewBuilder var trailing: Trailing
+
+    var body: some View {
+        HStack(spacing: 10) {
+            leading
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(message == nil ? .callout : .callout.weight(.semibold))
+                    .fixedSize(horizontal: false, vertical: true)
+                if let message {
+                    Text(message)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            Spacer(minLength: 8)
+            trailing
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color(nsColor: .separatorColor)))
+    }
+}
+
+extension NoticeBar where Trailing == EmptyView {
+    init(title: String, message: String? = nil, @ViewBuilder leading: () -> Leading) {
+        self.init(title: title, message: message, leading: leading, trailing: { EmptyView() })
+    }
+}
