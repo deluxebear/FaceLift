@@ -964,8 +964,8 @@ extension ContentView {
         let panel = NSSavePanel()
         panel.title = L("Save Passcode Theme")
         panel.prompt = L("Export")
-        panel.nameFieldStringValue = "CustomTheme.passthm"
         panel.allowedContentTypes = [UTType(filenameExtension: "passthm") ?? .data]
+        panel.nameFieldStringValue = "CustomTheme"
         panel.canCreateDirectories = true
         
         if panel.runModal() == .OK, let url = panel.url {
