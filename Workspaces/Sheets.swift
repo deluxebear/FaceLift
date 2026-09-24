@@ -73,7 +73,7 @@ extension ContentView {
             Divider()
             Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 10, verticalSpacing: 8) {
                 creditRow(L("Developer & Maintainer:")) {
-                    Link("@jetems", destination: URL(string: "https://github.com/jetems")!)
+                    Link("@deluxebear", destination: URL(string: "https://github.com/deluxebear")!)
                 }
                 creditRow(L("AirCard Author:")) {
                     HStack(spacing: 4) {
