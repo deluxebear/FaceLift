@@ -788,6 +788,7 @@ class AppViewModel: ObservableObject {
                let ok = json["ok"] as? Bool, ok {
                 let name = json["name"] as? String ?? url.deletingPathExtension().lastPathComponent
                 let detectedVersion = json["detected_version"] as? String ?? "TelephonyUI-10"
+                let supportedVersions = json["supported_versions"] as? [String] ?? []
                 let fileCount = json["file_count"] as? Int ?? 0
                 var previews: [String: NSImage] = [:]
                 if let keysDict = json["keys_preview"] as? [String: String] {
@@ -804,6 +805,7 @@ class AppViewModel: ObservableObject {
                     name: name,
                     filePath: url.path,
                     detectedVersion: detectedVersion,
+                    supportedVersions: supportedVersions,
                     fileCount: fileCount,
                     keysPreview: previews
                 )
@@ -1102,6 +1104,7 @@ class AppViewModel: ObservableObject {
             name: L("Created Theme"),
             filePath: stagedURL.path,
             detectedVersion: targetTelephonyVersion,
+            supportedVersions: [],
             fileCount: keys.count * 4,
             keysPreview: keys
         )

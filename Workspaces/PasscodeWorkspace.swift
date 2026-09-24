@@ -114,7 +114,9 @@ extension ContentView {
                                 .font(.headline)
                                 .fontWeight(.bold)
                             
-                            Text(theme.detectedVersion)
+                            Text(theme.supportedVersions.count > 1
+                                 ? L("Supports %@", theme.supportedVersions.joined(separator: ", "))
+                                 : theme.detectedVersion)
                                 .font(.caption.weight(.semibold))
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)

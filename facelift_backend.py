@@ -403,16 +403,17 @@ def cmd_inspect_passthm(passthm_path: str):
         print(json.dumps({"ok": False, "error": f"File not found: {passthm_path}"}))
         return
     try:
-        detected_ver = "TelephonyUI-10"
         with zipfile.ZipFile(path, "r") as z:
-            for entry in z.namelist():
-                low = entry.lower()
-                if "telephonyui-8" in low or "telephony-8" in low:
-                    detected_ver = "TelephonyUI-8"
-                    break
-                elif "telephonyui-9" in low or "telephony-9" in low:
-                    detected_ver = "TelephonyUI-9"
-                    break
+            entries = [entry.lower() for entry in z.namelist()]
+            supported_versions = [
+                f"TelephonyUI-{version}"
+                for version in (10, 9, 8)
+                if any(
+                    f"telephonyui-{version}" in entry or f"telephony-{version}" in entry
+                    for entry in entries
+                )
+            ]
+        detected_ver = supported_versions[0] if supported_versions else "TelephonyUI-10"
 
         items = parse_passthm_archive(str(path), detected_ver)
         if not items:
@@ -436,6 +437,7 @@ def cmd_inspect_passthm(passthm_path: str):
             "ok": True,
             "name": path.stem,
             "detected_version": detected_ver,
+            "supported_versions": supported_versions,
             "file_count": len(items),
             "keys_preview": keys_preview
         }))

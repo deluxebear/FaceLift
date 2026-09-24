@@ -73,6 +73,7 @@ struct PasscodeThemeInfo: Identifiable {
     let name: String
     let filePath: String
     let detectedVersion: String
+    let supportedVersions: [String]
     let fileCount: Int
     let keysPreview: [String: NSImage]
 }
