@@ -92,6 +92,15 @@ extension ContentView {
         return true
     }
     
+    /// Image drops on the Creator canvas, keypad or a key (`keyDigit`).
+    func handleCreatorDrop(providers: [NSItemProvider], keyDigit: String?) -> Bool {
+        switch creatorDropAction(isIndividualKeys: vm.creatorSubMode == .individualKeys, keyDigit: keyDigit) {
+        case .setPoster: return handlePosterDrop(providers: providers)
+        case .setKey(let digit): return handleIndividualKeyDrop(digit: digit, providers: providers)
+        case .reject: return false
+        }
+    }
+
     func handleThemeDrop(providers: [NSItemProvider]) -> Bool {
         guard let provider = providers.first else { return false }
         provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, _ in

@@ -37,7 +37,7 @@ extension ContentView {
             of: isApply ? [UTType.fileURL, UTType.data] : [UTType.fileURL, UTType.image],
             isTargeted: $isCanvasTargeted
         ) { providers in
-            isApply ? handleThemeDrop(providers: providers) : handlePosterDrop(providers: providers)
+            isApply ? handleThemeDrop(providers: providers) : handleCreatorDrop(providers: providers, keyDigit: nil)
         }
     }
 
@@ -148,7 +148,7 @@ extension ContentView {
                 }
         )
         .onDrop(of: [UTType.fileURL, UTType.image], isTargeted: nil) { providers in
-            handlePosterDrop(providers: providers)
+            handleCreatorDrop(providers: providers, keyDigit: nil)
         }
     }
     
@@ -262,10 +262,7 @@ extension ContentView {
             }
         }
         .onDrop(of: [UTType.fileURL, UTType.image], isTargeted: nil) { providers in
-            if vm.creatorSubMode == .individualKeys {
-                return handleIndividualKeyDrop(digit: btn.digit, providers: providers)
-            }
-            return false
+            handleCreatorDrop(providers: providers, keyDigit: btn.digit)
         }
     }
     
