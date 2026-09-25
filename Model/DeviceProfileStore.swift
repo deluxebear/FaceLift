@@ -64,6 +64,17 @@ struct ArtworkHistoryItem: Identifiable {
     let id: String
     let url: URL
     let appliedAt: String?
+    let sha256: String?
+}
+
+/// The artwork FaceLift last put on the iPhone for a card. FaceLift cannot
+/// see the phone's live state, so this only reflects its own writes.
+struct CurrentArtwork: Codable {
+    var kind: String?
+    var sha256: String?
+    var at: String?
+
+    var isOriginal: Bool { kind == "original" }
 }
 
 enum DeviceProfileStore {
@@ -220,8 +231,13 @@ enum DeviceProfileStore {
         return entries.compactMap { entry in
             let url = dir.appendingPathComponent((entry.file as NSString).lastPathComponent)
             guard FileManager.default.fileExists(atPath: url.path) else { return nil }
-            return ArtworkHistoryItem(id: entry.file, url: url, appliedAt: entry.appliedAt)
+            return ArtworkHistoryItem(id: entry.file, url: url, appliedAt: entry.appliedAt, sha256: entry.sha256)
         }
+    }
+
+    static func currentArtwork(udid: String, cardId: String) -> CurrentArtwork? {
+        guard let dir = historyDirectory(udid: udid, cardId: cardId) else { return nil }
+        return read(CurrentArtwork.self, from: dir.appendingPathComponent("current.json"))
     }
 
     // MARK: Legacy store

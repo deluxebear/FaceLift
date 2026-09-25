@@ -192,6 +192,11 @@ struct ArtworkHistorySheet: View {
         let original = DeviceProfileStore.originalManifest(udid: target.udid, cardId: target.cardId)
         let originalPreview = DeviceProfileStore.originalPreviewURL(udid: target.udid, cardId: target.cardId)
         let items = DeviceProfileStore.history(udid: target.udid, cardId: target.cardId)
+        let current = Self.currentID(
+            DeviceProfileStore.currentArtwork(udid: target.udid, cardId: target.cardId),
+            items: items,
+            hasOriginal: original != nil
+        )
         VStack(alignment: .leading, spacing: 12) {
             Text(L("Artwork History"))
                 .font(.headline)
@@ -211,18 +216,26 @@ struct ArtworkHistorySheet: View {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], alignment: .leading, spacing: 16) {
                         if let original {
                             tile(url: originalPreview, title: L("Original"), subtitle: Self.displayDate(original.capturedAt)) {
-                                Button(L("Restore…")) {
-                                    dismiss()
-                                    DispatchQueue.main.async { onRestoreOriginal() }
+                                if current == Self.originalID {
+                                    currentBadge
+                                } else {
+                                    Button(L("Restore…")) {
+                                        dismiss()
+                                        DispatchQueue.main.async { onRestoreOriginal() }
+                                    }
+                                    .disabled(!vm.canRestoreOriginal)
                                 }
-                                .disabled(!vm.canRestoreOriginal)
                             }
                         }
                         ForEach(items) { item in
                             tile(url: item.url, title: L("Written by FaceLift"), subtitle: Self.displayDate(item.appliedAt)) {
-                                Button(L("Use This Design")) {
-                                    vm.useHistoryArtwork(item.url, for: target.cardId)
-                                    dismiss()
+                                if current == item.id {
+                                    currentBadge
+                                } else {
+                                    Button(L("Use This Design")) {
+                                        vm.useHistoryArtwork(item.url, for: target.cardId)
+                                        dismiss()
+                                    }
                                 }
                             }
                         }
@@ -270,6 +283,25 @@ struct ArtworkHistorySheet: View {
             action()
                 .controlSize(.small)
         }
+    }
+
+    private static let originalID = "original"
+
+    /// Which tile FaceLift last wrote to the iPhone. Cards written before
+    /// this was recorded fall back to the newest write, else the original.
+    private static func currentID(_ current: CurrentArtwork?, items: [ArtworkHistoryItem], hasOriginal: Bool) -> String? {
+        if let current {
+            if current.isOriginal { return hasOriginal ? originalID : nil }
+            return items.first(where: { $0.sha256 != nil && $0.sha256 == current.sha256 })?.id
+        }
+        return items.first?.id ?? (hasOriginal ? originalID : nil)
+    }
+
+    private var currentBadge: some View {
+        Label(L("Current Artwork"), systemImage: "checkmark.circle.fill")
+            .font(.callout.weight(.medium))
+            .foregroundStyle(Color.brand)
+            .help(L("The artwork FaceLift last wrote to this iPhone. Changes made outside FaceLift are not detected."))
     }
 
     private static func displayDate(_ iso: String?) -> String {

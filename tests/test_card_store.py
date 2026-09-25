@@ -129,6 +129,25 @@ class OriginalAndHistoryTests(SupportRootCase):
         self.assertEqual(len(list(directory.glob("*.png"))), 3)
 
 
+class CurrentArtworkTests(SupportRootCase):
+    def test_original_is_current_after_capture(self) -> None:
+        device_profiles.store_original(UDID_A, CARD_A, {"cardBackgroundCombined.pdf": b"%PDF-1"})
+        self.assertEqual(device_profiles.load_current(UDID_A, CARD_A)["kind"], "original")
+
+    def test_flash_makes_the_written_design_current(self) -> None:
+        device_profiles.store_original(UDID_A, CARD_A, {"cardBackgroundCombined.pdf": b"%PDF-1"})
+        entry = device_profiles.record_history(UDID_A, CARD_A, b"one")
+        device_profiles.record_history(UDID_A, CARD_A, b"two")
+        device_profiles.record_history(UDID_A, CARD_A, b"one")
+        current = device_profiles.load_current(UDID_A, CARD_A)
+        self.assertEqual((current["kind"], current["sha256"]), ("custom", entry["sha256"]))
+
+    def test_recapture_does_not_reset_current(self) -> None:
+        device_profiles.record_history(UDID_A, CARD_A, b"one")
+        device_profiles.store_original(UDID_A, CARD_A, {"cardBackgroundCombined.pdf": b"%PDF-1"})
+        self.assertEqual(device_profiles.load_current(UDID_A, CARD_A)["kind"], "custom")
+
+
 class BackendGuardTests(SupportRootCase):
     def test_flash_refuses_a_card_of_another_device(self) -> None:
         device_profiles.save_profile_cards(UDID_A, [CARD_A])
@@ -231,6 +250,7 @@ class BackendGuardTests(SupportRootCase):
             ["cardBackgroundCombined@2x.png", "cardBackgroundCombined@3x.png"],
         )
         self.assertEqual(lines[-1]["written"], ["cardBackgroundCombined.pdf"])
+        self.assertEqual(device_profiles.load_current(UDID_A, CARD_A)["kind"], "original")
 
     def test_restore_without_original_does_nothing(self) -> None:
         device_profiles.save_profile_cards(UDID_A, [CARD_A])
