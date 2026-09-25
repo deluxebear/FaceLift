@@ -43,11 +43,19 @@ struct PasscodeRecord: Codable {
     var lastAppliedAt: String?
 }
 
+/// Passcode flash targets the user picked for one iPhone. Absent means
+/// "use what the iPhone reports" (language and Bold Text).
+struct PasscodeTargets: Codable {
+    var language: String?
+    var bold: String?
+}
+
 struct DeviceProfile: Codable {
     var schema: Int?
     var udid: String
     var cards: [StoredCard]
     var passcode: PasscodeRecord?
+    var passcodeTargets: PasscodeTargets?
 }
 
 struct OriginalManifest: Codable {
@@ -179,7 +187,7 @@ enum DeviceProfileStore {
            let profile = read(DeviceProfile.self, from: base.appendingPathComponent("profile.json")) {
             return profile
         }
-        return DeviceProfile(schema: 1, udid: udid, cards: [], passcode: nil)
+        return DeviceProfile(schema: 1, udid: udid, cards: [], passcode: nil, passcodeTargets: nil)
     }
 
     private static func saveProfile(_ profile: DeviceProfile) {
@@ -199,6 +207,42 @@ enum DeviceProfileStore {
             return known[id] ?? StoredCard(id: id, addedAt: now(), source: source)
         }
         saveProfile(profile)
+    }
+
+    static func savePasscodeTargets(udid: String, _ targets: PasscodeTargets?) {
+        var profile = loadProfile(udid: udid)
+        profile.passcodeTargets = targets
+        saveProfile(profile)
+    }
+
+    static func cardCount(udid: String) -> Int {
+        loadProfile(udid: udid).cards.count
+    }
+
+    /// Sets the name FaceLift shows for an iPhone; empty clears it.
+    static func rename(udid: String, to name: String) -> DeviceIndex {
+        var index = loadIndex()
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if var devices = index.devices, let i = devices.firstIndex(where: { $0.udid == udid }) {
+            devices[i].customName = trimmed.isEmpty ? nil : trimmed
+            index.devices = devices
+            saveIndex(index)
+        }
+        return index
+    }
+
+    /// Deletes everything FaceLift keeps for an iPhone: its cards, artwork,
+    /// saved originals and history. Passcode cache backups are kept, since
+    /// they are the only copy of what was removed from the phone.
+    static func forget(udid: String) -> DeviceIndex {
+        var index = loadIndex()
+        if let base = deviceDirectory(udid) {
+            try? FileManager.default.removeItem(at: base)
+        }
+        index.devices = (index.devices ?? []).filter { $0.udid != udid }
+        if index.lastActiveUDID == udid { index.lastActiveUDID = nil }
+        saveIndex(index)
+        return index
     }
 
     static func recordPasscode(udid: String, theme: String, version: String) {
