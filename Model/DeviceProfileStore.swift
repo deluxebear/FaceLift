@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 // Per-iPhone storage. The layout matches device_profiles.py, which the
 // backend uses to check that a card belongs to the iPhone it writes to:
@@ -64,6 +65,17 @@ struct ArtworkHistoryItem: Identifiable {
     let id: String
     let url: URL
     let appliedAt: String?
+    let sha256: String?
+}
+
+/// The artwork FaceLift last put on the iPhone for a card. FaceLift cannot
+/// see the phone's live state, so this only reflects its own writes.
+struct CurrentArtwork: Codable {
+    var kind: String?
+    var sha256: String?
+    var at: String?
+
+    var isOriginal: Bool { kind == "original" }
 }
 
 enum DeviceProfileStore {
@@ -220,8 +232,29 @@ enum DeviceProfileStore {
         return entries.compactMap { entry in
             let url = dir.appendingPathComponent((entry.file as NSString).lastPathComponent)
             guard FileManager.default.fileExists(atPath: url.path) else { return nil }
-            return ArtworkHistoryItem(id: entry.file, url: url, appliedAt: entry.appliedAt)
+            return ArtworkHistoryItem(id: entry.file, url: url, appliedAt: entry.appliedAt, sha256: entry.sha256)
         }
+    }
+
+    private static func sha256(of url: URL) -> String? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// Whether the artwork shown for a card is the one FaceLift last wrote.
+    static func shownArtworkIsCurrent(udid: String, cardId: String) -> Bool {
+        guard let shown = skinURL(udid: udid, cardId: cardId),
+              let current = currentArtwork(udid: udid, cardId: cardId),
+              let shownHash = sha256(of: shown) else { return false }
+        if current.isOriginal {
+            return originalPreviewURL(udid: udid, cardId: cardId).flatMap(sha256(of:)) == shownHash
+        }
+        return current.sha256 == shownHash
+    }
+
+    static func currentArtwork(udid: String, cardId: String) -> CurrentArtwork? {
+        guard let dir = historyDirectory(udid: udid, cardId: cardId) else { return nil }
+        return read(CurrentArtwork.self, from: dir.appendingPathComponent("current.json"))
     }
 
     // MARK: Legacy store

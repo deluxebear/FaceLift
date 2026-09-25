@@ -49,6 +49,8 @@ struct CardItem: Identifiable, Hashable {
     var isSelected: Bool = false
     var customImageURL: URL? = nil
     var customImage: NSImage? = nil
+    /// The artwork shown is the one FaceLift last put on the iPhone.
+    var isOnDevice: Bool = false
     
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
@@ -56,6 +58,7 @@ struct CardItem: Identifiable, Hashable {
     
     static func == (lhs: CardItem, rhs: CardItem) -> Bool {
         lhs.id == rhs.id && lhs.isSelected == rhs.isSelected && lhs.customImageURL == rhs.customImageURL
+            && lhs.isOnDevice == rhs.isOnDevice
     }
 }
 

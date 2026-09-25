@@ -202,6 +202,9 @@ def store_original(udid: str, card_hash: str, payloads: dict[str, bytes | None])
         "suspectModified": bool(png3 and png2 and png3 == png2),
     }
     write_json(directory / "manifest.json", manifest)
+    if load_current(udid, card_hash) is None:
+        # Right after capture, the original is what the iPhone shows.
+        set_current(udid, card_hash, "original")
     return manifest
 
 
@@ -248,4 +251,24 @@ def record_history(udid: str, card_hash: str, image: bytes) -> dict:
         except OSError:
             pass
     write_json(directory / "history.json", entries[:HISTORY_LIMIT])
+    set_current(udid, card_hash, "custom", digest)
     return entry
+
+
+# MARK: - Current artwork
+
+def load_current(udid: str, card_hash: str) -> dict | None:
+    """The artwork FaceLift last put on the iPhone for this card.
+
+    FaceLift cannot see the phone's live state, so this only reflects its
+    own writes: the original after capture or restore, else the last flash.
+    """
+    data = _read_json(history_dir(udid, card_hash) / "current.json", None)
+    return data if isinstance(data, dict) and data.get("kind") in ("original", "custom") else None
+
+
+def set_current(udid: str, card_hash: str, kind: str, sha256: str | None = None) -> None:
+    entry = {"kind": kind, "at": now_iso()}
+    if sha256:
+        entry["sha256"] = sha256
+    write_json(history_dir(udid, card_hash) / "current.json", entry)

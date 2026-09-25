@@ -424,3 +424,6 @@
 "Auto-configured passcode target: %@, %@" = "Auto-configured passcode target: %@, %@";
 "Auto-detect" = "Auto-detect";
 "Reset to the iPhone's detected language and font style" = "Reset to the iPhone's detected language and font style";
+"Current Artwork" = "Current Artwork";
+"The artwork FaceLift last wrote to this iPhone. Changes made outside FaceLift are not detected." = "The artwork FaceLift last wrote to this iPhone. Changes made outside FaceLift are not detected.";
+"On iPhone" = "On iPhone";

@@ -276,6 +276,7 @@ class AppViewModel: ObservableObject {
                let image = NSImage(contentsOf: url) {
                 card.customImageURL = url
                 card.customImage = image
+                card.isOnDevice = DeviceProfileStore.shownArtworkIsCurrent(udid: udid, cardId: stored.id)
             }
             return card
         }
@@ -343,6 +344,7 @@ class AppViewModel: ObservableObject {
         let stored = FileManager.default.fileExists(atPath: dest.path) ? dest : url
         cards[idx].customImageURL = stored
         cards[idx].customImage = NSImage(contentsOf: stored)
+        cards[idx].isOnDevice = false
         cards[idx].isSelected = true
     }
 
@@ -401,6 +403,7 @@ class AppViewModel: ObservableObject {
                        let idx = self.cards.firstIndex(where: { $0.id == request.cardId }) {
                         self.cards[idx].customImageURL = dest
                         self.cards[idx].customImage = image
+                        self.cards[idx].isOnDevice = true
                     }
                     self.setStatus("Read artwork for %@.", short)
                     self.log("Read %@ artwork for card %@.", asset, short)
@@ -525,6 +528,7 @@ class AppViewModel: ObservableObject {
         if let idx = cards.firstIndex(where: { $0.id == cardId }) {
             cards[idx].customImageURL = nil
             cards[idx].customImage = nil
+            cards[idx].isOnDevice = false
             if let udid = activeProfileUDID, let url = DeviceProfileStore.skinURL(udid: udid, cardId: cardId) {
                 try? FileManager.default.removeItem(at: url)
             }
@@ -604,7 +608,24 @@ class AppViewModel: ObservableObject {
         let exists = FileManager.default.fileExists(atPath: dest.path)
         cards[idx].customImageURL = exists ? dest : nil
         cards[idx].customImage = exists ? NSImage(contentsOf: dest) : nil
+        cards[idx].isOnDevice = exists
         // Already on the iPhone; keep it out of the next flash.
+        cards[idx].isSelected = false
+    }
+
+    /// After a successful flash the card shows exactly what was written and
+    /// leaves the selection, so the next Flash does not write it again.
+    private func markFlashed(cardId: String, udid: String, preparedURL: URL) {
+        guard let dest = DeviceProfileStore.skinURL(udid: udid, cardId: cardId) else { return }
+        if FileManager.default.fileExists(atPath: preparedURL.path) {
+            try? FileManager.default.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? FileManager.default.removeItem(at: dest)
+            try? FileManager.default.copyItem(at: preparedURL, to: dest)
+        }
+        guard udid == activeProfileUDID, let idx = cards.firstIndex(where: { $0.id == cardId }) else { return }
+        cards[idx].customImageURL = dest
+        cards[idx].customImage = NSImage(contentsOf: dest)
+        cards[idx].isOnDevice = DeviceProfileStore.shownArtworkIsCurrent(udid: udid, cardId: cardId)
         cards[idx].isSelected = false
     }
 
@@ -1038,6 +1059,7 @@ class AppViewModel: ObservableObject {
                 
                 await MainActor.run {
                     self.progress = Double(idx + 1) / totalCards
+                    self.markFlashed(cardId: card.id, udid: udid, preparedURL: preparedURL)
                 }
             }
             

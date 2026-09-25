@@ -230,6 +230,7 @@ def cmd_restore_original(udid: str, card_hash: str) -> bool:
             return False
     native("sweep", udid)
     _invalidate_card_cache(udid, card_hash)
+    device_profiles.set_current(udid, card_hash, "original")
     print(json.dumps({
         "ok": True,
         "written": [leaf for leaf, _ in present],
