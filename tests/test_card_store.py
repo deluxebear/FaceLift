@@ -156,7 +156,8 @@ class BackendGuardTests(SupportRootCase):
         image = self.home / "new.png"
         image.write_bytes(b"\x89PNGnew")
         with patch.object(facelift_backend, "build_card_assets", return_value=(("a", b"1"),)), \
-             patch.object(facelift_backend, "write_files_batch", Mock(return_value=True)):
+             patch.object(facelift_backend, "write_files_batch", Mock(return_value=True)), \
+             patch.object(facelift_backend, "remove_files", Mock(return_value=True)):
             ok, _ = self.run_backend(facelift_backend.cmd_flash, UDID_A, CARD_A, str(image))
         self.assertTrue(ok)
         entries = device_profiles.load_history(UDID_A, CARD_A)

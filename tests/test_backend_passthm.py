@@ -1,10 +1,20 @@
+import os
 import sys
+import unittest
 from pathlib import Path
 
 # Add project root to sys.path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from facelift_backend import parse_passthm_archive, KEYPAD_SUBTEXTS
+
+
+def sample_theme(variable: str, default: str) -> str:
+    """Returns a local sample .passthm, or skips when it is not on this Mac."""
+    path = os.environ.get(variable, default)
+    if not Path(path).is_file():
+        raise unittest.SkipTest(f"sample theme not found: {path} (set {variable})")
+    return path
 
 
 def verify_archive_extraction(passthm_path: str, name: str):
@@ -45,17 +55,17 @@ def verify_archive_extraction(passthm_path: str, name: str):
 
 
 def test_minepass_nightly():
-    minepass_path = "/Users/mak5er/Downloads/MinePass_Nightly.passthm"
+    minepass_path = sample_theme("FACELIFT_MINEPASS_PASSTHM", "/Users/mak5er/Downloads/MinePass_Nightly.passthm")
     verify_archive_extraction(minepass_path, "MinePass_Nightly.passthm")
 
 
 def test_tck():
-    tck_path = "/Users/mak5er/Downloads/AyuGram Desktop/тцк.passthm"
+    tck_path = sample_theme("FACELIFT_TCK_PASSTHM", "/Users/mak5er/Downloads/AyuGram Desktop/тцк.passthm")
     verify_archive_extraction(tck_path, "тцк.passthm")
 
 
 def test_filtered_modes():
-    minepass_path = "/Users/mak5er/Downloads/MinePass_Nightly.passthm"
+    minepass_path = sample_theme("FACELIFT_MINEPASS_PASSTHM", "/Users/mak5er/Downloads/MinePass_Nightly.passthm")
     # Test uk + bold only
     items_uk_bold = parse_passthm_archive(minepass_path, "TelephonyUI-10", target_lang="uk", target_bold="bold")
     leaves_uk_bold = [item[1] for item in items_uk_bold]
@@ -72,7 +82,7 @@ def test_filtered_modes():
 
 
 def test_digit_5_and_universal():
-    minepass_path = "/Users/mak5er/Downloads/MinePass_Nightly.passthm"
+    minepass_path = sample_theme("FACELIFT_MINEPASS_PASSTHM", "/Users/mak5er/Downloads/MinePass_Nightly.passthm")
     # Test digit 5 in ru + bold
     items_ru_bold = parse_passthm_archive(minepass_path, "TelephonyUI-9", target_lang="ru", target_bold="bold")
     leaves = [item[1] for item in items_ru_bold]
@@ -138,7 +148,7 @@ def test_cmd_flash_passthm_batch_fast():
     from unittest.mock import Mock, patch
     import facelift_backend
 
-    minepass_path = "/Users/mak5er/Downloads/MinePass_Nightly.passthm"
+    minepass_path = sample_theme("FACELIFT_MINEPASS_PASSTHM", "/Users/mak5er/Downloads/MinePass_Nightly.passthm")
     mock_batch = Mock(return_value=True)
     mock_single = Mock(return_value=True)
 
@@ -183,7 +193,7 @@ def test_cmd_flash_passthm_fallback():
     from unittest.mock import Mock, patch
     import facelift_backend
 
-    minepass_path = "/Users/mak5er/Downloads/MinePass_Nightly.passthm"
+    minepass_path = sample_theme("FACELIFT_MINEPASS_PASSTHM", "/Users/mak5er/Downloads/MinePass_Nightly.passthm")
     mock_batch = Mock(return_value=False)  # Batch fails!
     mock_single = Mock(return_value=True)  # Fallback succeeds
 
