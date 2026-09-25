@@ -52,12 +52,18 @@ extension ContentView {
     var flashTargetSection: some View {
         let isUniversal = vm.passcodeLanguageTarget == .all && vm.passcodeBoldTarget == .both
         return Section {
-            Picker(L("Keyboard Language"), selection: $vm.passcodeLanguageTarget) {
+            Picker(L("Keyboard Language"), selection: Binding(
+                get: { vm.passcodeLanguageTarget },
+                set: { vm.choosePasscodeLanguage($0) }
+            )) {
                 ForEach(PasscodeLanguageTarget.allCases) { item in
                     Text(item.title).tag(item)
                 }
             }
-            Picker(L("Font Weight"), selection: $vm.passcodeBoldTarget) {
+            Picker(L("Font Weight"), selection: Binding(
+                get: { vm.passcodeBoldTarget },
+                set: { vm.choosePasscodeBold($0) }
+            )) {
                 ForEach(PasscodeBoldTarget.allCases) { item in
                     Text(item.title).tag(item)
                 }
@@ -68,7 +74,7 @@ extension ContentView {
                 Spacer()
                 if let dev = vm.device, dev.connected {
                     Button {
-                        vm.applyDevicePreferences(from: dev)
+                        vm.resetPasscodeTargets(from: dev)
                     } label: {
                         Label(L("Auto-detect"), systemImage: "sparkles")
                     }

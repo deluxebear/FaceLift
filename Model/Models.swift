@@ -27,6 +27,8 @@ struct DeviceInfo: Codable {
     var language: String?
     var locale: String?
     var bold_text: Bool?
+    /// Every iPhone reachable right now, for switching between them.
+    var available: [AvailableDevice]?
     var airlift_compatible: Bool?
     var connected: Bool
     var error: String?
@@ -42,6 +44,14 @@ struct DeviceInfo: Codable {
         if major >= 14 { return "TelephonyUI-8" }
         return nil
     }
+}
+
+struct AvailableDevice: Codable, Identifiable, Hashable {
+    let udid: String
+    var name: String?
+    var product: String?
+    var connection: String?
+    var id: String { udid }
 }
 
 struct CardItem: Identifiable, Hashable {
@@ -137,6 +147,10 @@ enum PasscodeLanguageTarget: String, CaseIterable, Identifiable {
         return forLanguageIdentifier(identifier)
     }
 
+    static func fromCode(_ code: String) -> Self? {
+        allCases.first { $0.code == code }
+    }
+
     static func forLanguageIdentifier(_ identifier: String) -> Self {
         let language = identifier
             .split(whereSeparator: { $0 == "-" || $0 == "_" })
@@ -195,6 +209,10 @@ enum PasscodeBoldTarget: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 
     @MainActor var title: String { L(rawValue) }
+
+    static func fromCode(_ code: String) -> Self? {
+        allCases.first { $0.code == code }
+    }
     
     var code: String {
         switch self {

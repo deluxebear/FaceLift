@@ -55,6 +55,10 @@ class AppViewModel: ObservableObject {
     @Published var legacyClaim: LegacyClaim?
     @Published private(set) var legacyCardCount = 0
     @Published var historyTarget: ArtworkHistoryTarget?
+    /// The connected iPhone the card list last followed. The list only
+    /// follows again when a different iPhone connects, so choosing to view
+    /// another iPhone's cards is not undone by the next device check.
+    private var reconciledUDID: String?
     
     private var scanProcess: Process?
     private let scriptDir: String
@@ -243,7 +247,18 @@ class AppViewModel: ObservableObject {
 
     var activeProfileName: String {
         guard let udid = activeProfileUDID else { return "iPhone" }
-        return knownDevices.first(where: { $0.udid == udid })?.displayName ?? "iPhone"
+        return displayName(for: udid)
+    }
+
+    func displayName(for udid: String) -> String {
+        if let record = knownDevices.first(where: { $0.udid == udid }) { return record.displayName }
+        return device?.available?.first(where: { $0.udid == udid })?.name ?? "iPhone"
+    }
+
+    /// The connected iPhone's name, using the name set in FaceLift if any.
+    var connectedDeviceName: String {
+        guard let udid = device?.udid else { return device?.name ?? "iPhone" }
+        return knownDevices.first(where: { $0.udid == udid })?.customName ?? device?.name ?? "iPhone"
     }
 
     /// True when the connected iPhone is the one whose cards are shown.
@@ -286,16 +301,71 @@ class AppViewModel: ObservableObject {
     private func reconcileActiveProfile(with dev: DeviceInfo) {
         guard dev.connected, let udid = dev.udid, DeviceProfileStore.isValidUDID(udid) else { return }
         knownDevices = DeviceProfileStore.recordSeen(dev).devices ?? []
-        guard udid != activeProfileUDID else { return }
+        guard udid != reconciledUDID || activeProfileUDID == nil else { return }
+        guard udid != activeProfileUDID else {
+            reconciledUDID = udid
+            return
+        }
         // A running write stays bound to its iPhone; switch on a later check.
         guard !isFlashing && !isPullingSkins else { return }
-        if isScanningCards { stopCardScanning() }
-        skinPullQueue.removeAll()
-        activateProfile(udid)
-        let name = dev.name ?? "iPhone"
+        switchProfile(to: udid)
+        reconciledUDID = udid
+        let name = displayName(for: udid)
         setStatus("Showing cards of %@.", name)
         log("Switched to the cards of %@ (%@ card(s)).", name, "\(cards.count)")
         offerLegacyCardsIfNeeded(udid: udid, deviceName: name)
+    }
+
+    private func switchProfile(to udid: String) {
+        if isScanningCards { stopCardScanning() }
+        skinPullQueue.removeAll()
+        activateProfile(udid)
+    }
+
+    // MARK: - Known iPhones
+
+    /// Shows another iPhone's cards, connected or not. Writing still needs
+    /// that iPhone to be the connected one.
+    func viewProfile(_ udid: String) {
+        guard udid != activeProfileUDID, !isFlashing, !isPullingSkins,
+              DeviceProfileStore.isValidUDID(udid) else { return }
+        switchProfile(to: udid)
+        setStatus("Showing cards of %@.", activeProfileName)
+        log("Switched to the cards of %@ (%@ card(s)).", activeProfileName, "\(cards.count)")
+    }
+
+    /// Makes one of several connected iPhones the one FaceLift works with.
+    func useConnectedDevice(_ udid: String) {
+        guard !isFlashing, !isPullingSkins, DeviceProfileStore.isValidUDID(udid) else { return }
+        if udid != activeProfileUDID { switchProfile(to: udid) }
+        reconciledUDID = udid
+        log("Switched to %@.", activeProfileName)
+        // The next check passes this iPhone as --prefer, so it is selected.
+        checkDevice()
+    }
+
+    func renameDevice(_ udid: String, to name: String) {
+        knownDevices = DeviceProfileStore.rename(udid: udid, to: name).devices ?? []
+    }
+
+    /// Deletes an iPhone's saved cards, artwork, originals and history.
+    func forgetDevice(_ udid: String) {
+        guard !isFlashing, !isPullingSkins else { return }
+        let name = displayName(for: udid)
+        let wasActive = udid == activeProfileUDID
+        if wasActive {
+            if isScanningCards { stopCardScanning() }
+            skinPullQueue.removeAll()
+        }
+        knownDevices = DeviceProfileStore.forget(udid: udid).devices ?? []
+        if wasActive {
+            activeProfileUDID = nil
+            cards = []
+            // If this iPhone is connected, the next check starts it afresh.
+            reconciledUDID = nil
+        }
+        log("Forgot %@ and deleted its saved cards and artwork.", name)
+        if device?.connected == true { checkDevice(silent: true) }
     }
 
     private func offerLegacyCardsIfNeeded(udid: String, deviceName: String) {
@@ -665,6 +735,10 @@ class AppViewModel: ObservableObject {
                         let newlyConnected = self.device?.connected != true || self.device?.udid != dev.udid
                         self.device = dev
                         self.isCheckingDevice = false
+                        if !dev.connected {
+                            // A later connection, even of the same iPhone, is followed again.
+                            self.reconciledUDID = nil
+                        }
                         if dev.connected {
                             if let cacheVersion = dev.passcodeCacheVersion {
                                 self.targetTelephonyVersion = cacheVersion
@@ -718,6 +792,7 @@ class AppViewModel: ObservableObject {
     
     /// Targets the passcode flash at the iPhone's own keyboard language and
     /// Bold Text setting, so only the matching files are written.
+    /// Targets chosen by hand for this iPhone win over the detected ones.
     func applyDevicePreferences(from dev: DeviceInfo) {
         if let language = dev.language {
             passcodeLanguageTarget = PasscodeLanguageTarget.forLanguageIdentifier(language)
@@ -725,7 +800,45 @@ class AppViewModel: ObservableObject {
         if let isBold = dev.bold_text {
             passcodeBoldTarget = isBold ? .boldOnly : .regularOnly
         }
+        if let udid = dev.udid, DeviceProfileStore.isValidUDID(udid),
+           let saved = DeviceProfileStore.loadProfile(udid: udid).passcodeTargets {
+            if let code = saved.language, let target = PasscodeLanguageTarget.fromCode(code) {
+                passcodeLanguageTarget = target
+            }
+            if let code = saved.bold, let target = PasscodeBoldTarget.fromCode(code) {
+                passcodeBoldTarget = target
+            }
+            log("Using the passcode target saved for this iPhone: %@, %@", passcodeLanguageTarget.title, passcodeBoldTarget.title)
+            return
+        }
         log("Auto-configured passcode target: %@, %@", passcodeLanguageTarget.title, passcodeBoldTarget.title)
+    }
+
+    /// Forgets the targets chosen for this iPhone and detects them again.
+    func resetPasscodeTargets(from dev: DeviceInfo) {
+        if let udid = dev.udid, DeviceProfileStore.isValidUDID(udid) {
+            DeviceProfileStore.savePasscodeTargets(udid: udid, nil)
+        }
+        applyDevicePreferences(from: dev)
+    }
+
+    func choosePasscodeLanguage(_ target: PasscodeLanguageTarget) {
+        passcodeLanguageTarget = target
+        savePasscodeTargets()
+    }
+
+    func choosePasscodeBold(_ target: PasscodeBoldTarget) {
+        passcodeBoldTarget = target
+        savePasscodeTargets()
+    }
+
+    /// Remembers a hand-picked target for the connected iPhone.
+    private func savePasscodeTargets() {
+        guard device?.connected == true, let udid = device?.udid, DeviceProfileStore.isValidUDID(udid) else { return }
+        DeviceProfileStore.savePasscodeTargets(
+            udid: udid,
+            PasscodeTargets(language: passcodeLanguageTarget.code, bold: passcodeBoldTarget.code)
+        )
     }
 
     func startCardScanning() {

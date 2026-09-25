@@ -59,6 +59,17 @@ class ProfileStoreTests(SupportRootCase):
         self.assertEqual(cards[CARD_A]["source"], "scan")
         self.assertEqual(cards[CARD_B]["source"], "manual")
 
+    def test_saving_cards_keeps_settings_written_by_the_app(self) -> None:
+        device_profiles.save_profile_cards(UDID_A, [CARD_A])
+        profile = device_profiles.load_profile(UDID_A)
+        profile["passcodeTargets"] = {"language": "zh", "bold": "bold"}
+        device_profiles.write_json(device_profiles.profile_path(UDID_A), profile)
+        device_profiles.save_profile_cards(UDID_A, [CARD_A, CARD_B])
+        self.assertEqual(
+            device_profiles.load_profile(UDID_A)["passcodeTargets"],
+            {"language": "zh", "bold": "bold"},
+        )
+
     def test_invalid_identifiers_never_become_paths(self) -> None:
         for udid in ("../../etc", "short", ""):
             with self.assertRaises(ValueError):
