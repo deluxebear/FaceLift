@@ -179,3 +179,101 @@ extension ContentView {
         .frame(width: 440)
     }
 }
+
+/// The artwork saved for one card: the original captured before FaceLift
+/// first changed it, then every design FaceLift has written, newest first.
+struct ArtworkHistorySheet: View {
+    @ObservedObject var vm: AppViewModel
+    let target: ArtworkHistoryTarget
+    let onRestoreOriginal: () -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        let original = DeviceProfileStore.originalManifest(udid: target.udid, cardId: target.cardId)
+        let originalPreview = DeviceProfileStore.originalPreviewURL(udid: target.udid, cardId: target.cardId)
+        let items = DeviceProfileStore.history(udid: target.udid, cardId: target.cardId)
+        VStack(alignment: .leading, spacing: 12) {
+            Text(L("Artwork History"))
+                .font(.headline)
+            Text(target.cardId)
+                .font(.caption.monospaced())
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+            if original == nil && items.isEmpty {
+                ContentUnavailableView(
+                    L("Nothing Saved Yet"),
+                    systemImage: "clock.arrow.circlepath",
+                    description: Text(L("Reading this card or flashing it saves its original artwork first."))
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 150), spacing: 12)], alignment: .leading, spacing: 16) {
+                        if let original {
+                            tile(url: originalPreview, title: L("Original"), subtitle: Self.displayDate(original.capturedAt)) {
+                                Button(L("Restore…")) {
+                                    dismiss()
+                                    DispatchQueue.main.async { onRestoreOriginal() }
+                                }
+                                .disabled(!vm.canRestoreOriginal)
+                            }
+                        }
+                        ForEach(items) { item in
+                            tile(url: item.url, title: L("Written by FaceLift"), subtitle: Self.displayDate(item.appliedAt)) {
+                                Button(L("Use This Design")) {
+                                    vm.useHistoryArtwork(item.url, for: target.cardId)
+                                    dismiss()
+                                }
+                            }
+                        }
+                    }
+                }
+                if original?.suspectModified == true {
+                    NoticeBar(title: L("This card may already have been changed before its original was saved, so the saved original may not be the issuer's design.")) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .foregroundStyle(.orange)
+                    }
+                }
+            }
+            HStack {
+                Spacer()
+                Button(L("Done")) { dismiss() }
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(20)
+        .frame(width: 560, height: 460)
+    }
+
+    private func tile<Action: View>(url: URL?, title: String, subtitle: String, @ViewBuilder action: () -> Action) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Color.clear
+                .aspectRatio(1.59, contentMode: .fit)
+                .overlay {
+                    if let url, let image = NSImage(contentsOf: url) {
+                        Image(nsImage: image)
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        Rectangle()
+                            .fill(.quaternary)
+                            .overlay(Image(systemName: "photo").foregroundStyle(.secondary))
+                    }
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
+            Text(title)
+                .font(.callout.weight(.medium))
+            Text(subtitle)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            action()
+                .controlSize(.small)
+        }
+    }
+
+    private static func displayDate(_ iso: String?) -> String {
+        guard let iso, let date = ISO8601DateFormatter().date(from: iso) else { return "" }
+        return date.formatted(date: .abbreviated, time: .shortened)
+    }
+}

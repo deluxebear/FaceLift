@@ -87,6 +87,7 @@ cp apply_card_skin.py "$RESOURCES_DIR/"
 cp facelift.py "$RESOURCES_DIR/"
 cp facelift_backend.py "$RESOURCES_DIR/"
 cp card_assets.py "$RESOURCES_DIR/"
+cp device_profiles.py "$RESOURCES_DIR/"
 cp Resources/DefaultPasscodePoster.png "$RESOURCES_DIR/"
 cp -R Resources/en.lproj Resources/zh-Hans.lproj "$RESOURCES_DIR/"
 

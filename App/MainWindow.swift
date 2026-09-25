@@ -60,6 +60,25 @@ struct ContentView: View {
         .sheet(isPresented: $window.showCredits) { creditsSheet }
         .sheet(isPresented: $window.showGuide) { guideSheet }
         .sheet(isPresented: $vm.showAddCardSheet) { addCardSheet }
+        .sheet(item: $vm.historyTarget) { target in
+            ArtworkHistorySheet(vm: vm, target: target) {
+                confirmRestoreOriginal(for: target.cardId)
+            }
+        }
+        .alert(
+            L("Cards from an Earlier Version"),
+            isPresented: Binding(
+                get: { vm.legacyClaim != nil },
+                set: { if !$0 { vm.legacyClaim = nil } }
+            ),
+            presenting: vm.legacyClaim
+        ) { _ in
+            Button(L("Add to This iPhone")) { vm.importLegacyCards() }
+            Button(L("Don't Ask Again")) { vm.stopOfferingLegacyCards() }
+            Button(L("Later"), role: .cancel) {}
+        } message: { claim in
+            Text(L("An earlier FaceLift saved %@ card(s) without noting which iPhone they belong to. Do they belong to %@? Only add them if they do.", "\(claim.count)", claim.deviceName))
+        }
         .onChange(of: window.section) { _, destination in syncViewModel(to: destination) }
         .onChange(of: vm.passcodeTabMode) { _, mode in
             // Programmatic mode changes (e.g. "Edit in Creator") move the sidebar too.

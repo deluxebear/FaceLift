@@ -16,7 +16,10 @@ struct SidebarView: View {
                 }
             }
             Section(L("Device")) {
-                DeviceSidebarRow(device: vm.device)
+                DeviceSidebarRow(
+                    device: vm.device,
+                    offlineProfileName: vm.activeProfileUDID == nil || vm.isActiveDeviceConnected ? nil : vm.activeProfileName
+                )
                     .tag(WorkspaceSection.device)
             }
         }
@@ -28,6 +31,8 @@ struct SidebarView: View {
 
 private struct DeviceSidebarRow: View {
     let device: DeviceInfo?
+    /// The iPhone whose cards are shown while it is not the connected one.
+    let offlineProfileName: String?
 
     var body: some View {
         let connected = device?.connected == true
@@ -38,6 +43,12 @@ private struct DeviceSidebarRow: View {
                     .lineLimit(1)
                 if connected {
                     Text("iOS \(device?.version ?? "") · \(device?.isWiFi == true ? L("Wi-Fi") : L("USB"))")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                if let offlineProfileName {
+                    Text(L("Showing cards of %@", offlineProfileName))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .lineLimit(1)

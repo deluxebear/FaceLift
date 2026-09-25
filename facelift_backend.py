@@ -40,10 +40,15 @@ for lp in lib_paths:
         cur_dyld = os.environ.get("DYLD_LIBRARY_PATH", "")
         os.environ["DYLD_LIBRARY_PATH"] = f"{lp}:{cur_dyld}" if cur_dyld else lp
 
+import device_profiles
 from apply_card_skin import (
     native,
     operation_ok,
     read_card_artwork,
+    read_card_originals,
+    remove_pass_file,
+    _write_preview,
+    CardReadSyncError,
     clear_passcode_cache,
     write_file,
     write_files_batch,
@@ -60,11 +65,11 @@ from facelift import (
 )
 
 
-def cmd_device():
+def cmd_device(prefer: str | None = None):
     if not find_device_helper():
         print(json.dumps({"connected": False, "error": "device_helper_missing"}))
         return
-    device = get_connected_device()
+    device = get_connected_device(prefer)
     if not device:
         print(json.dumps({"connected": False, "error": "no_device"}))
         return
@@ -74,33 +79,173 @@ def cmd_device():
     print(json.dumps(device))
 
 
-def cmd_pull_card(udid: str, card_hash: str, dest_path: str) -> bool:
-    from apply_card_skin import CardReadSyncError
+def _card_not_in_profile(udid: str, card_hash: str) -> bool:
+    """Refuses any card the iPhone's own profile does not list."""
+    if device_profiles.card_in_profile(udid, card_hash):
+        return False
+    print(json.dumps({
+        "ok": False,
+        "type": "error",
+        "card": card_hash,
+        "reason": "card_not_in_profile",
+        "message": "This card does not belong to the connected iPhone.",
+    }))
+    sys.stdout.flush()
+    return True
 
+
+def _skin_destination(udid: str, card_hash: str, dest_path: str) -> Path | None:
+    """Artwork read from an iPhone may only land in that iPhone's folder."""
     try:
-        leaf = read_card_artwork(udid, card_hash, dest_path)
+        expected = device_profiles.skin_path(udid, card_hash)
+    except ValueError:
+        return None
+    dest = Path(dest_path).expanduser()
+    return dest if dest.resolve(strict=False) == expected.resolve(strict=False) else None
+
+
+def cmd_pull_card(udid: str, card_hash: str, dest_path: str) -> bool:
+    if _card_not_in_profile(udid, card_hash):
+        return False
+    dest = _skin_destination(udid, card_hash, dest_path)
+    if dest is None:
+        print(json.dumps({"ok": False, "reason": "destination", "asset": "", "path": ""}))
+        return False
+    try:
+        leaf = read_card_artwork(udid, card_hash, os.fspath(dest))
     except CardReadSyncError:
         print(json.dumps({"ok": False, "reason": "sync", "asset": "", "path": ""}))
         return False
     print(json.dumps({
-        "ok": bool(leaf) and Path(dest_path).is_file(),
+        "ok": bool(leaf) and dest.is_file(),
         "reason": "" if leaf else "missing",
         "asset": leaf or "",
-        "path": dest_path if leaf else "",
+        "path": os.fspath(dest) if leaf else "",
     }))
     return bool(leaf)
 
 
-def cmd_get_saved_cards():
-    cards = load_saved_cards()
-    print(json.dumps({"ok": True, "cards": cards}))
+def cmd_snapshot_card(udid: str, card_hash: str, dest_path: str | None = None) -> bool:
+    """Captures the card's untouched artwork once.
+
+    The capture is kept byte for byte under originals/ so it can be written
+    back later; an existing capture is never replaced. With `dest_path`, a
+    preview is also copied there for the app to show. Without it the shown
+    artwork is left alone (used right before flashing a new design).
+    """
+    if _card_not_in_profile(udid, card_hash):
+        return False
+    dest = _skin_destination(udid, card_hash, dest_path) if dest_path else None
+    if dest_path and dest is None:
+        print(json.dumps({"ok": False, "reason": "destination", "asset": "", "path": ""}))
+        return False
+    manifest = device_profiles.original_manifest(udid, card_hash)
+    if manifest is None:
+        try:
+            payloads = read_card_originals(udid, card_hash, device_profiles.ORIGINAL_LEAVES)
+        except CardReadSyncError:
+            print(json.dumps({"ok": False, "reason": "sync", "asset": "", "path": ""}))
+            return False
+        manifest = device_profiles.store_original(udid, card_hash, payloads)
+    directory = device_profiles.original_dir(udid, card_hash)
+    leaf = next(
+        (name for name in device_profiles.ORIGINAL_LEAVES if manifest["leaves"].get(name, {}).get("present")),
+        None,
+    )
+    preview = directory / "preview.png"
+    if leaf and not preview.is_file():
+        try:
+            _write_preview((directory / leaf).read_bytes(), preview)
+        except (OSError, subprocess.SubprocessError):
+            pass
+    if dest and leaf and preview.is_file():
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(preview.read_bytes())
+    shown = bool(dest and leaf and dest.is_file())
+    print(json.dumps({
+        "ok": bool(leaf) and (dest is None or shown),
+        "reason": "" if leaf else "missing",
+        "asset": leaf or "",
+        "path": os.fspath(dest) if shown else "",
+        "captured": True,
+        "suspectModified": bool(manifest.get("suspectModified")),
+    }))
+    return bool(leaf)
 
 
-def cmd_save_cards(cards_json: str):
+def _invalidate_card_cache(udid: str, card_hash: str) -> None:
+    cache_leaves = [(leaf, b"corrupted") for leaf in CACHE_FILES]
+    for ext in [".cache", ".pkcache"]:
+        cache_dir = f"/var/mobile/Library/Passes/Cards/{card_hash}{ext}"
+        try:
+            ok_cache = write_files_batch(udid, cache_dir, cache_leaves)
+        except Exception:
+            ok_cache = False
+        if not ok_cache:
+            for leaf, payload in cache_leaves:
+                try:
+                    write_file(udid, cache_dir, leaf, payload)
+                except Exception:
+                    pass
+
+
+def cmd_restore_original(udid: str, card_hash: str) -> bool:
+    """Writes the captured original artwork back to the iPhone.
+
+    Leaves the original pass had are written back byte for byte; leaves
+    FaceLift added are taken out again.
+    """
+    if _card_not_in_profile(udid, card_hash):
+        return False
+    try:
+        payloads = device_profiles.original_payloads(udid, card_hash)
+    except (OSError, ValueError) as exc:
+        print(json.dumps({"ok": False, "reason": "no_original", "error": str(exc)}))
+        return False
+
+    pkpass_dir = f"/var/mobile/Library/Passes/Cards/{card_hash}.pkpass"
+    present = [(leaf, data) for leaf, data in payloads.items() if data]
+    absent = [leaf for leaf, data in payloads.items() if not data]
+
+    ok = True
+    if present:
+        try:
+            ok = write_files_batch(udid, pkpass_dir, present)
+        except (OSError, RuntimeError, subprocess.SubprocessError):
+            ok = False
+        if not ok:
+            ok = all(write_file(udid, pkpass_dir, leaf, data) for leaf, data in present)
+    if not ok:
+        print(json.dumps({"ok": False, "reason": "write", "error": "Could not write original artwork"}))
+        return False
+
+    removed = []
+    for leaf in absent:
+        try:
+            if remove_pass_file(udid, card_hash, leaf):
+                removed.append(leaf)
+        except CardReadSyncError as exc:
+            print(json.dumps({"ok": False, "reason": "sync", "error": f"Could not remove {leaf}: {exc}"}))
+            return False
+    native("sweep", udid)
+    _invalidate_card_cache(udid, card_hash)
+    print(json.dumps({
+        "ok": True,
+        "written": [leaf for leaf, _ in present],
+        "removed": removed,
+    }))
+    return True
+
+
+def cmd_get_saved_cards(udid: str):
+    print(json.dumps({"ok": True, "cards": load_saved_cards(udid)}))
+
+
+def cmd_save_cards(udid: str, cards_json: str):
     try:
         cards = json.loads(cards_json)
         if isinstance(cards, list):
-            save_cards(cards)
+            save_cards(udid, [c for c in cards if isinstance(c, str)])
             print(json.dumps({"ok": True}))
             return
     except Exception as e:
@@ -144,13 +289,25 @@ def cmd_prepare_image(src: str, dst: str):
 
 
 def cmd_flash(udid: str, card_hash: str, image_path: str) -> bool:
+    if _card_not_in_profile(udid, card_hash):
+        return False
+    if device_profiles.original_manifest(udid, card_hash) is None:
+        print(json.dumps({
+            "type": "error",
+            "card": card_hash,
+            "reason": "no_original",
+            "message": "Original artwork has not been saved yet.",
+        }))
+        sys.stdout.flush()
+        return False
     img_path = Path(image_path)
     if not img_path.is_file():
         print(json.dumps({"ok": False, "error": "Image file not found"}))
         return False
 
+    image_bytes = img_path.read_bytes()
     try:
-        asset_payloads = build_card_assets(img_path.read_bytes())
+        asset_payloads = build_card_assets(image_bytes)
     except (OSError, subprocess.SubprocessError):
         print(json.dumps({
             "type": "error",
@@ -226,6 +383,11 @@ def cmd_flash(udid: str, card_hash: str, image_path: str) -> bool:
         }))
         sys.stdout.flush()
         return False
+
+    try:
+        device_profiles.record_history(udid, card_hash, image_bytes)
+    except OSError:
+        pass
 
     print(json.dumps({
         "type": "success",
@@ -594,13 +756,24 @@ def main():
     cmd = sys.argv[1]
     norm_cmd = cmd.lstrip("-")
     if norm_cmd == "device":
-        cmd_device()
-    elif norm_cmd == "cards":
-        cmd_get_saved_cards()
-    elif norm_cmd == "save-cards" and len(sys.argv) > 2:
-        cmd_save_cards(sys.argv[2])
+        prefer = sys.argv[3] if len(sys.argv) > 3 and sys.argv[2] == "--prefer" else None
+        cmd_device(prefer)
+    elif norm_cmd == "cards" and len(sys.argv) > 2:
+        cmd_get_saved_cards(sys.argv[2])
+    elif norm_cmd == "save-cards" and len(sys.argv) > 3:
+        cmd_save_cards(sys.argv[2], sys.argv[3])
     elif norm_cmd == "pull-card" and len(sys.argv) > 4:
         if not cmd_pull_card(sys.argv[2], sys.argv[3], sys.argv[4]):
+            sys.exit(1)
+    elif norm_cmd == "snapshot-card" and len(sys.argv) > 3:
+        # Succeeds whenever the original is saved, even for a card that has
+        # none of the artwork leaves; the JSON line says what was found.
+        cmd_snapshot_card(sys.argv[2], sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else None)
+        if not device_profiles.valid_udid(sys.argv[2]) or not device_profiles.valid_card(sys.argv[3]) \
+                or device_profiles.original_manifest(sys.argv[2], sys.argv[3]) is None:
+            sys.exit(1)
+    elif norm_cmd == "restore-original" and len(sys.argv) > 3:
+        if not cmd_restore_original(sys.argv[2], sys.argv[3]):
             sys.exit(1)
     elif norm_cmd == "prepare-image" and len(sys.argv) > 3:
         cmd_prepare_image(sys.argv[2], sys.argv[3])

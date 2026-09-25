@@ -8,15 +8,21 @@ extension AppViewModel {
     var readyToFlashCount: Int { cards.filter { $0.isSelected && $0.customImageURL != nil }.count }
     var hasSelectedCards: Bool { cards.contains(where: \.isSelected) }
 
-    var canScanCards: Bool { isConnected }
-    var canReadSelected: Bool { isConnected && device?.isWiFi != true && !isBusy && hasSelectedCards }
+    // Device actions also need the connected iPhone to be the one whose
+    // cards are shown, so nothing is written with another iPhone's data.
+    var canScanCards: Bool { isActiveDeviceConnected }
+    var canReadSelected: Bool { isActiveDeviceConnected && device?.isWiFi != true && !isBusy && hasSelectedCards }
     var canSetSkinForSelected: Bool { hasSelectedCards }
-    var canFlashCards: Bool { readyToFlashCount > 0 && !isBusy && isConnected }
-    var canFlashPasscode: Bool { loadedPasscodeTheme != nil && !isBusy && device?.isUSBConnectedIPhone == true }
-    var canFlashCreator: Bool { !effectiveCreatorKeys.isEmpty && !isBusy && device?.isUSBConnectedIPhone == true }
+    var canFlashCards: Bool { readyToFlashCount > 0 && !isBusy && isActiveDeviceConnected }
+    var canFlashPasscode: Bool {
+        loadedPasscodeTheme != nil && !isBusy && device?.isUSBConnectedIPhone == true && isActiveDeviceConnected
+    }
+    var canFlashCreator: Bool {
+        !effectiveCreatorKeys.isEmpty && !isBusy && device?.isUSBConnectedIPhone == true && isActiveDeviceConnected
+    }
     var canExportCreator: Bool { !effectiveCreatorKeys.isEmpty }
     var canRestorePasscode: Bool {
-        device?.isUSBConnectedIPhone == true && device?.passcodeCacheVersion != nil && !isBusy
+        device?.isUSBConnectedIPhone == true && device?.passcodeCacheVersion != nil && !isBusy && isActiveDeviceConnected
     }
 
     func canFlash(in section: WorkspaceSection) -> Bool {
