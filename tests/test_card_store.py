@@ -190,6 +190,18 @@ class BackendGuardTests(SupportRootCase):
         self.assertEqual(dest.read_bytes(), b"\x89PNG3x")
         self.assertFalse(lines[-1]["suspectModified"])
 
+    def test_snapshot_without_destination_leaves_shown_artwork_alone(self) -> None:
+        device_profiles.save_profile_cards(UDID_A, [CARD_A])
+        dest = device_profiles.skin_path(UDID_A, CARD_A)
+        dest.parent.mkdir(parents=True)
+        dest.write_bytes(b"new design")
+        reader = Mock(return_value={"cardBackgroundCombined@3x.png": b"\x89PNG3x"})
+        with patch.object(facelift_backend, "read_card_originals", reader):
+            ok, lines = self.run_backend(facelift_backend.cmd_snapshot_card, UDID_A, CARD_A, None)
+        self.assertTrue(ok)
+        self.assertEqual(dest.read_bytes(), b"new design")
+        self.assertIsNotNone(device_profiles.original_manifest(UDID_A, CARD_A))
+
     def test_snapshot_sync_failure_saves_nothing(self) -> None:
         device_profiles.save_profile_cards(UDID_A, [CARD_A])
         reader = Mock(side_effect=apply_card_skin.CardReadSyncError("sync"))

@@ -46,12 +46,20 @@ class AppViewModel: ObservableObject {
     @Published var manualHashInput = ""
     @Published var showLogs = false
     @Published var isPullingSkins = false
-    private var skinPullQueue: [String] = []
+    private var skinPullQueue: [SkinPullRequest] = []
+
+    /// UDID of the iPhone whose cards are shown. Survives disconnects; it
+    /// follows the connected iPhone on the next device check.
+    @Published private(set) var activeProfileUDID: String?
+    @Published var knownDevices: [DeviceRecord] = []
+    @Published var legacyClaim: LegacyClaim?
+    @Published private(set) var legacyCardCount = 0
+    @Published var historyTarget: ArtworkHistoryTarget?
     
     private var scanProcess: Process?
     private let scriptDir: String
-    // Card hashes live in exactly one place: Application Support/FaceLift/cards.json.
-    // The keys and dotfiles below are only read once, to migrate older installs.
+    // Cards are stored per iPhone (DeviceProfileStore). The keys and dotfiles
+    // below are only read once, into Legacy/, to migrate older installs.
     private static let legacyStorageKeys = [
         "jetems.facelift.savedCards",
         "mak5er.aircard.savedCards",
@@ -80,7 +88,11 @@ class AppViewModel: ObservableObject {
             self.scriptDir = Bundle.main.bundleURL.deletingLastPathComponent().path
         }
         
-        loadSavedCards()
+        prepareStore()
+        if let last = DeviceProfileStore.loadIndex().lastActiveUDID, DeviceProfileStore.isValidUDID(last) {
+            activateProfile(last)
+            log("Loaded %@ card(s) of %@.", "\(cards.count)", activeProfileName)
+        }
         loadDefaultPoster(announce: false)
         checkDevice()
     }
@@ -214,68 +226,117 @@ class AppViewModel: ObservableObject {
         }
     }
     
-    // MARK: - Persistence
-    
-    static var cardsStoreURL: URL {
-        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        return support.appendingPathComponent("FaceLift/cards.json")
+    // MARK: - Persistence (per iPhone)
+
+    /// Moves every pre-profile card list into Legacy/. Nothing is assigned
+    /// to an iPhone until the user says which one it belongs to.
+    private func prepareStore() {
+        if DeviceProfileStore.migrateLegacyStore() {
+            log("Moved cards saved by an earlier version aside until you choose their iPhone.")
+        }
+        let found = Self.migrateLegacyCards()
+        if !found.isEmpty {
+            DeviceProfileStore.addLegacyCardIds(found)
+        }
+        legacyCardCount = DeviceProfileStore.legacyCardIds().count
     }
 
-    func loadSavedCards() {
-        var loaded: [String] = []
-        let store = Self.cardsStoreURL
+    var activeProfileName: String {
+        guard let udid = activeProfileUDID else { return "iPhone" }
+        return knownDevices.first(where: { $0.udid == udid })?.displayName ?? "iPhone"
+    }
 
-        if let data = try? Data(contentsOf: store),
-           let hashes = try? JSONDecoder().decode([String].self, from: data) {
-            loaded = hashes
-        } else {
-            loaded = Self.migrateLegacyCards()
-            if !loaded.isEmpty {
-                Self.writeCards(loaded)
-                log("Migrated %@ card(s) to %@.", "\(loaded.count)", store.path)
-            }
-        }
-        
-        let dummyHashes = [
-            "M6nDwZrkYbFlsodLgCbvyFZQ1cc=",
-            "kJL-D0rr-SZhbj2c8nK-OQ9hCMY=",
-            "hwAtAmHKYwsQrJbT5cTNDsaxVME="
-        ]
-        loaded.removeAll { dummyHashes.contains($0) || ($0.contains("-") && $0.count == 36) }
-        
-        self.cards = loaded.map { id in
-            var card = CardItem(id: id)
-            let stored = Self.storedSkinURL(for: id)
-            if FileManager.default.fileExists(atPath: stored.path),
-               let image = NSImage(contentsOf: stored) {
-                card.customImageURL = stored
+    /// True when the connected iPhone is the one whose cards are shown.
+    var isActiveDeviceConnected: Bool {
+        guard let udid = device?.udid, device?.connected == true else { return false }
+        return udid == activeProfileUDID
+    }
+
+    /// Shown above the card list when writes are blocked because the list
+    /// belongs to an iPhone that is not connected.
+    var profileNotice: String? {
+        guard activeProfileUDID != nil, !isActiveDeviceConnected else { return nil }
+        return L("Showing cards of %@. Connect this iPhone to write to it.", activeProfileName)
+    }
+
+    private func activateProfile(_ udid: String) {
+        activeProfileUDID = udid
+        cards = Self.loadCards(for: udid)
+        var index = DeviceProfileStore.loadIndex()
+        index.lastActiveUDID = udid
+        DeviceProfileStore.saveIndex(index)
+        knownDevices = index.devices ?? []
+    }
+
+    private static func loadCards(for udid: String) -> [CardItem] {
+        DeviceProfileStore.loadProfile(udid: udid).cards.map { stored in
+            var card = CardItem(id: stored.id)
+            if let url = DeviceProfileStore.skinURL(udid: udid, cardId: stored.id),
+               FileManager.default.fileExists(atPath: url.path),
+               let image = NSImage(contentsOf: url) {
+                card.customImageURL = url
                 card.customImage = image
             }
             return card
         }
-        log("Loaded %@ real card(s) from storage.", "\(cards.count)")
     }
 
-    static func storedSkinURL(for cardId: String) -> URL {
-        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let base = support.appendingPathComponent("FaceLift/skins", isDirectory: true)
-        // One-time migration of skins saved under the previous AirCard branding.
-        let legacyBase = support.appendingPathComponent("AirCard/skins", isDirectory: true)
-        if !FileManager.default.fileExists(atPath: base.path),
-           FileManager.default.fileExists(atPath: legacyBase.path) {
-            try? FileManager.default.createDirectory(at: base.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try? FileManager.default.moveItem(at: legacyBase, to: base)
+    /// Follows the connected iPhone: its own cards replace the list shown.
+    private func reconcileActiveProfile(with dev: DeviceInfo) {
+        guard dev.connected, let udid = dev.udid, DeviceProfileStore.isValidUDID(udid) else { return }
+        knownDevices = DeviceProfileStore.recordSeen(dev).devices ?? []
+        guard udid != activeProfileUDID else { return }
+        // A running write stays bound to its iPhone; switch on a later check.
+        guard !isFlashing && !isPullingSkins else { return }
+        if isScanningCards { stopCardScanning() }
+        skinPullQueue.removeAll()
+        activateProfile(udid)
+        let name = dev.name ?? "iPhone"
+        setStatus("Showing cards of %@.", name)
+        log("Switched to the cards of %@ (%@ card(s)).", name, "\(cards.count)")
+        offerLegacyCardsIfNeeded(udid: udid, deviceName: name)
+    }
+
+    private func offerLegacyCardsIfNeeded(udid: String, deviceName: String) {
+        guard cards.isEmpty, legacyCardCount > 0,
+              DeviceProfileStore.loadIndex().legacyPromptDismissed != true else { return }
+        legacyClaim = LegacyClaim(udid: udid, deviceName: deviceName, count: legacyCardCount)
+    }
+
+    /// Adds the cards saved by an earlier version to the shown iPhone.
+    func importLegacyCards() {
+        guard let udid = activeProfileUDID else { return }
+        var added = 0
+        for id in DeviceProfileStore.legacyCardIds() where !cards.contains(where: { $0.id == id }) {
+            var card = CardItem(id: id)
+            if let source = DeviceProfileStore.legacySkinURL(cardId: id),
+               let dest = DeviceProfileStore.skinURL(udid: udid, cardId: id) {
+                try? FileManager.default.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
+                if !FileManager.default.fileExists(atPath: dest.path) {
+                    try? FileManager.default.copyItem(at: source, to: dest)
+                }
+                card.customImageURL = dest
+                card.customImage = NSImage(contentsOf: dest)
+            }
+            cards.append(card)
+            added += 1
         }
-        try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
-        let allowed = CharacterSet(charactersIn: "-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_+=")
-        let safe = cardId.unicodeScalars.allSatisfy { allowed.contains($0) } ? cardId : "card"
-        return base.appendingPathComponent(safe).appendingPathExtension("png")
+        saveCards(source: "legacy")
+        log("Added %@ card(s) from an earlier version to %@.", "\(added)", activeProfileName)
+    }
+
+    func stopOfferingLegacyCards() {
+        var index = DeviceProfileStore.loadIndex()
+        index.legacyPromptDismissed = true
+        DeviceProfileStore.saveIndex(index)
     }
 
     func storeSkin(for cardId: String, url: URL) {
-        guard let idx = cards.firstIndex(where: { $0.id == cardId }) else { return }
-        let dest = Self.storedSkinURL(for: cardId)
+        guard let udid = activeProfileUDID,
+              let idx = cards.firstIndex(where: { $0.id == cardId }),
+              let dest = DeviceProfileStore.skinURL(udid: udid, cardId: cardId) else { return }
         if url.path != dest.path {
+            try? FileManager.default.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
             try? FileManager.default.removeItem(at: dest)
             try? FileManager.default.copyItem(at: url, to: dest)
         }
@@ -286,86 +347,109 @@ class AppViewModel: ObservableObject {
     }
 
     func queueSkinPulls(ids: [String], replacingStored: Bool) {
-        guard device?.connected == true, let _ = device?.udid, !isFlashing else { return }
+        guard isActiveDeviceConnected, let udid = device?.udid, !isFlashing else { return }
         if device?.isWiFi == true {
             setStatus("Reading artwork over Wi-Fi may fail — connect via USB.")
             log("Warning: reading artwork over Wi-Fi is unreliable; use a USB connection.")
         }
         for id in ids {
-            let stored = Self.storedSkinURL(for: id)
-            let hasStored = FileManager.default.fileExists(atPath: stored.path)
-            if !replacingStored && hasStored { continue }
-            if !skinPullQueue.contains(id) {
-                skinPullQueue.append(id)
+            // The first read also saves the untouched original.
+            let needsOriginal = !DeviceProfileStore.hasOriginal(udid: udid, cardId: id)
+            let hasShown = DeviceProfileStore.skinURL(udid: udid, cardId: id)
+                .map { FileManager.default.fileExists(atPath: $0.path) } ?? false
+            if !replacingStored && hasShown && !needsOriginal { continue }
+            let request = SkinPullRequest(udid: udid, cardId: id)
+            if !skinPullQueue.contains(request) {
+                skinPullQueue.append(request)
             }
         }
         pumpSkinPulls()
     }
 
     func pumpSkinPulls() {
-        guard !isPullingSkins, !isFlashing, let udid = device?.udid else { return }
+        guard !isPullingSkins, !isFlashing, let current = device?.udid else { return }
+        // Requests queued for another iPhone are dropped, never redirected.
+        skinPullQueue.removeAll { $0.udid != current }
         guard !skinPullQueue.isEmpty else { return }
-        let cardId = skinPullQueue.removeFirst()
+        let request = skinPullQueue.removeFirst()
+        guard let dest = DeviceProfileStore.skinURL(udid: request.udid, cardId: request.cardId) else {
+            pumpSkinPulls()
+            return
+        }
+        let capture = !DeviceProfileStore.hasOriginal(udid: request.udid, cardId: request.cardId)
         isPullingSkins = true
-        setStatus("Reading artwork from iPhone...")
+        setStatus(capture ? "Saving original artwork from iPhone..." : "Reading artwork from iPhone...")
         let scriptDir = self.scriptDir
-        let dest = Self.storedSkinURL(for: cardId)
+        let arguments = [capture ? "--snapshot-card" : "--pull-card", request.udid, request.cardId, dest.path]
         Task.detached {
-            let process = Process()
-            process.executableURL = AppViewModel.pythonExecutableURL
-            process.environment = AppViewModel.processEnvironment
-            process.currentDirectoryURL = URL(fileURLWithPath: scriptDir)
-            process.arguments = ["facelift_backend.py", "--pull-card", udid, cardId, dest.path]
-            let pipe = Pipe()
-            process.standardOutput = pipe
-            process.standardError = FileHandle.nullDevice
-            let pulled: (ok: Bool, asset: String, reason: String)
-            do {
-                try process.run()
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                process.waitUntilExit()
-                if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                    pulled = ((json["ok"] as? Bool) == true, json["asset"] as? String ?? "", json["reason"] as? String ?? "")
-                } else {
-                    pulled = (false, "", "sync")
-                }
-            } catch {
-                pulled = (false, "", "sync")
-            }
+            let json = AppViewModel.runBackendJSON(scriptDir: scriptDir, arguments: arguments)
+            let ok = (json?["ok"] as? Bool) == true
+            let asset = json?["asset"] as? String ?? ""
+            let reason = json?["reason"] as? String ?? "sync"
+            let suspect = (json?["suspectModified"] as? Bool) == true
             await MainActor.run {
                 self.isPullingSkins = false
-                if pulled.ok, let image = NSImage(contentsOf: dest) {
-                    if let idx = self.cards.firstIndex(where: { $0.id == cardId }) {
+                let short = String(request.cardId.prefix(8))
+                if capture && DeviceProfileStore.hasOriginal(udid: request.udid, cardId: request.cardId) {
+                    self.log("Saved the original artwork of card %@.", short)
+                    if suspect {
+                        self.log("Card %@ may already have been changed by an earlier FaceLift; its saved original may not be the issuer's design.", short)
+                    }
+                }
+                if ok, let image = NSImage(contentsOf: dest) {
+                    if request.udid == self.activeProfileUDID,
+                       let idx = self.cards.firstIndex(where: { $0.id == request.cardId }) {
                         self.cards[idx].customImageURL = dest
                         self.cards[idx].customImage = image
                     }
-                    self.setStatus("Read artwork for %@.", String(cardId.prefix(8)))
-                    self.log("Read %@ artwork for card %@.", pulled.asset, String(cardId.prefix(8)))
-                } else if pulled.reason == "sync" {
+                    self.setStatus("Read artwork for %@.", short)
+                    self.log("Read %@ artwork for card %@.", asset, short)
+                } else if reason == "card_not_in_profile" || reason == "destination" {
+                    self.log("Card %@ does not belong to the connected iPhone; skipped.", short)
+                } else if reason == "sync" {
                     self.skinPullQueue.removeAll()
                     self.setStatus("Could not read artwork from iPhone.")
                     self.log("Could not read artwork from iPhone.")
                 } else {
-                    self.log("No artwork found on iPhone for %@.", String(cardId.prefix(8)))
+                    self.log("No artwork found on iPhone for %@.", short)
                     if self.skinPullQueue.isEmpty {
-                        self.setStatus("No artwork found on iPhone for %@.", String(cardId.prefix(8)))
+                        self.setStatus("No artwork found on iPhone for %@.", short)
                     }
                 }
                 self.pumpSkinPulls()
             }
         }
     }
-    
-    func saveCards() {
-        Self.writeCards(cards.map { $0.id })
+
+    /// Runs one backend command and returns its last JSON line.
+    nonisolated static func runBackendJSON(scriptDir: String, arguments: [String]) -> [String: Any]? {
+        let process = Process()
+        process.executableURL = AppViewModel.pythonExecutableURL
+        process.environment = AppViewModel.processEnvironment
+        process.currentDirectoryURL = URL(fileURLWithPath: scriptDir)
+        process.arguments = ["facelift_backend.py"] + arguments
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        do {
+            try process.run()
+        } catch {
+            return nil
+        }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard let text = String(data: data, encoding: .utf8) else { return nil }
+        for line in text.split(separator: "\n").reversed() {
+            if let json = try? JSONSerialization.jsonObject(with: Data(line.utf8)) as? [String: Any] {
+                return json
+            }
+        }
+        return nil
     }
 
-    private static func writeCards(_ hashes: [String]) {
-        let store = cardsStoreURL
-        try? FileManager.default.createDirectory(at: store.deletingLastPathComponent(), withIntermediateDirectories: true)
-        if let data = try? JSONEncoder().encode(hashes) {
-            try? data.write(to: store, options: .atomic)
-        }
+    func saveCards(source: String = "manual") {
+        guard let udid = activeProfileUDID else { return }
+        DeviceProfileStore.saveCards(udid: udid, ids: cards.map(\.id), source: source)
     }
 
     /// Collects hashes from pre-cards.json storage, then retires those sources
@@ -395,6 +479,10 @@ class AppViewModel: ObservableObject {
     }
     
     func addCardHash(_ raw: String) -> (added: Int, rejected: [String]) {
+        guard activeProfileUDID != nil else {
+            errorMessage = L("Connect an iPhone first. Cards are saved for the iPhone they belong to.")
+            return (0, [raw])
+        }
         let components = raw.components(separatedBy: CharacterSet(charactersIn: " \n\r\t,;"))
         var addedCount = 0
         var rejected: [String] = []
@@ -437,11 +525,89 @@ class AppViewModel: ObservableObject {
         if let idx = cards.firstIndex(where: { $0.id == cardId }) {
             cards[idx].customImageURL = nil
             cards[idx].customImage = nil
-            try? FileManager.default.removeItem(at: Self.storedSkinURL(for: cardId))
+            if let udid = activeProfileUDID, let url = DeviceProfileStore.skinURL(udid: udid, cardId: cardId) {
+                try? FileManager.default.removeItem(at: url)
+            }
             log("Cleared custom skin for: %@...", String(cardId.prefix(12)))
         }
     }
     
+    // MARK: - Original Artwork and History
+
+    func hasOriginalArtwork(for cardId: String) -> Bool {
+        guard let udid = activeProfileUDID else { return false }
+        return DeviceProfileStore.hasOriginal(udid: udid, cardId: cardId)
+    }
+
+    var canRestoreOriginal: Bool { isActiveDeviceConnected && !isBusy && !isScanningCards }
+
+    func showArtworkHistory(for cardId: String) {
+        guard let udid = activeProfileUDID else { return }
+        historyTarget = ArtworkHistoryTarget(udid: udid, cardId: cardId)
+    }
+
+    /// Puts an earlier design back on the card; Flash writes it.
+    func useHistoryArtwork(_ url: URL, for cardId: String) {
+        storeSkin(for: cardId, url: url)
+        log("Chose an earlier design for card %@. Flash to write it.", String(cardId.prefix(12)))
+    }
+
+    /// Writes the artwork saved before FaceLift first changed the card back
+    /// to the iPhone, byte for byte.
+    func restoreOriginalArtwork(for cardId: String) {
+        guard let udid = device?.udid, isActiveDeviceConnected else {
+            errorMessage = L("Connect %@ to restore its original artwork.", activeProfileName)
+            return
+        }
+        guard !isFlashing && !isPullingSkins else { return }
+        guard DeviceProfileStore.hasOriginal(udid: udid, cardId: cardId) else {
+            errorMessage = L("No original artwork has been saved for this card yet.")
+            return
+        }
+        isFlashing = true
+        didClearPasscodeCache = false
+        errorMessage = nil
+        showLogs = true
+        progress = 0
+        let short = String(cardId.prefix(12))
+        setStatus("Restoring original artwork of %@...", short)
+        log("Restoring original artwork of %@...", short)
+        let scriptDir = self.scriptDir
+        Task.detached {
+            let json = AppViewModel.runBackendJSON(scriptDir: scriptDir, arguments: ["--restore-original", udid, cardId])
+            let ok = (json?["ok"] as? Bool) == true
+            let detail = (json?["error"] as? String) ?? (json?["reason"] as? String) ?? ""
+            await MainActor.run {
+                self.isFlashing = false
+                guard ok else {
+                    self.errorMessage = L("Could not restore the original artwork. Check the log.")
+                    self.setStatus("Could not restore the original artwork. Check the log.")
+                    self.log("Restoring the original artwork failed: %@", detail)
+                    return
+                }
+                self.progress = 1
+                self.showOriginalArtwork(udid: udid, cardId: cardId)
+                self.setStatus("Original artwork restored. Force-close Wallet to see it.")
+                self.log("Restored the original artwork of card %@.", short)
+            }
+        }
+    }
+
+    private func showOriginalArtwork(udid: String, cardId: String) {
+        guard let dest = DeviceProfileStore.skinURL(udid: udid, cardId: cardId) else { return }
+        try? FileManager.default.removeItem(at: dest)
+        if let preview = DeviceProfileStore.originalPreviewURL(udid: udid, cardId: cardId) {
+            try? FileManager.default.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? FileManager.default.copyItem(at: preview, to: dest)
+        }
+        guard udid == activeProfileUDID, let idx = cards.firstIndex(where: { $0.id == cardId }) else { return }
+        let exists = FileManager.default.fileExists(atPath: dest.path)
+        cards[idx].customImageURL = exists ? dest : nil
+        cards[idx].customImage = exists ? NSImage(contentsOf: dest) : nil
+        // Already on the iPhone; keep it out of the next flash.
+        cards[idx].isSelected = false
+    }
+
     // MARK: - Device Connection
     
     func checkDevice(silent: Bool = false) {
@@ -449,13 +615,16 @@ class AppViewModel: ObservableObject {
         isCheckingDevice = true
         if !silent { setStatus("Checking connected devices...") }
         let scriptDir = self.scriptDir
+        // Keeps the shown iPhone selected while it stays connected.
+        let arguments = ["facelift_backend.py", "--device"]
+            + (activeProfileUDID.map { ["--prefer", $0] } ?? [])
         
         Task.detached {
             let process = Process()
             process.executableURL = AppViewModel.pythonExecutableURL
             process.environment = AppViewModel.processEnvironment
             process.currentDirectoryURL = URL(fileURLWithPath: scriptDir)
-            process.arguments = ["facelift_backend.py", "--device"]
+            process.arguments = arguments
             
             let pipe = Pipe()
             process.standardOutput = pipe
@@ -487,6 +656,7 @@ class AppViewModel: ObservableObject {
                                 }
                                 self.log("Device connected (%@): %@ (%@, iOS %@)", dev.isWiFi ? "Wi-Fi" : "USB", deviceName, dev.product ?? "", dev.version ?? "")
                             }
+                            self.reconcileActiveProfile(with: dev)
                         } else if dev.error == "device_helper_missing" {
                             if changed || !silent {
                                 self.setStatus("Device tools are missing from this build.")
@@ -528,8 +698,12 @@ class AppViewModel: ObservableObject {
             log("Bundled device_helper not found — cannot scan.")
             return
         }
-        guard let udid = device?.udid else {
+        guard let udid = device?.udid, device?.connected == true else {
             errorMessage = L("No iPhone connected.")
+            return
+        }
+        guard udid == activeProfileUDID else {
+            errorMessage = L("The card list is switching to the connected iPhone. Try again in a moment.")
             return
         }
         isScanningCards = true
@@ -605,13 +779,7 @@ class AppViewModel: ObservableObject {
                                     if dummyHashes.contains(candidate) { continue }
                                     
                                     await MainActor.run {
-                                        if !self.cards.contains(where: { $0.id == candidate }) {
-                                            self.cards.append(CardItem(id: candidate))
-                                            self.saveCards()
-                                            self.log("Found card: %@", candidate)
-                                            self.queueSkinPulls(ids: [candidate], replacingStored: false)
-                                            NSSound(named: "Glass")?.play()
-                                        }
+                                        self.addScannedCard(candidate, udid: udid)
                                     }
                                 }
                             }
@@ -627,6 +795,24 @@ class AppViewModel: ObservableObject {
         }
     }
     
+    /// Saves a scanned card to the iPhone the scan was started on, even if
+    /// another iPhone's cards are shown by the time the log line arrives.
+    private func addScannedCard(_ cardId: String, udid: String) {
+        guard udid == activeProfileUDID else {
+            let ids = DeviceProfileStore.loadProfile(udid: udid).cards.map(\.id)
+            if !ids.contains(cardId) {
+                DeviceProfileStore.saveCards(udid: udid, ids: ids + [cardId], source: "scan")
+            }
+            return
+        }
+        guard !cards.contains(where: { $0.id == cardId }) else { return }
+        cards.append(CardItem(id: cardId))
+        saveCards(source: "scan")
+        log("Found card: %@", cardId)
+        queueSkinPulls(ids: [cardId], replacingStored: false)
+        NSSound(named: "Glass")?.play()
+    }
+
     func stopCardScanning() {
         scanProcess?.terminate()
         scanProcess = nil
@@ -639,8 +825,13 @@ class AppViewModel: ObservableObject {
     // MARK: - Skin Application
     
     func applySkin() {
-        guard let udid = device?.udid else {
+        guard let udid = device?.udid, device?.connected == true else {
             errorMessage = L("No iPhone connected.")
+            return
+        }
+        // Only the connected iPhone's own cards may be written to it.
+        guard udid == activeProfileUDID else {
+            errorMessage = L("These cards belong to %@, not to the connected iPhone.", activeProfileName)
             return
         }
         let selectedCardsWithSkin = cards.filter { $0.isSelected && $0.customImageURL != nil }
@@ -662,6 +853,22 @@ class AppViewModel: ObservableObject {
             for (idx, card) in selectedCardsWithSkin.enumerated() {
                 guard let imgURL = card.customImageURL else { continue }
                 
+                // Save the untouched original before the first change, so
+                // the card can always go back to it.
+                if !DeviceProfileStore.hasOriginal(udid: udid, cardId: card.id) {
+                    await MainActor.run {
+                        self.setStatus("[%@/%@] Saving original artwork of %@...", "\(idx + 1)", "\(selectedCardsWithSkin.count)", String(card.id.prefix(10)))
+                    }
+                    _ = AppViewModel.runBackendJSON(scriptDir: scriptDir, arguments: ["--snapshot-card", udid, card.id])
+                    if !DeviceProfileStore.hasOriginal(udid: udid, cardId: card.id) {
+                        flashFailed = true
+                        await MainActor.run {
+                            self.log("Could not save the original artwork of %@, so the card was not changed.", String(card.id.prefix(12)))
+                        }
+                        break
+                    }
+                }
+
                 let preparedPath = "/tmp/facelift_prep_\(idx).png"
                 
                 await MainActor.run {
@@ -865,6 +1072,10 @@ class AppViewModel: ObservableObject {
             errorMessage = L("Connect your iPhone with USB to write a passcode theme.")
             return
         }
+        guard udid == activeProfileUDID else {
+            errorMessage = L("The card list is switching to the connected iPhone. Try again in a moment.")
+            return
+        }
         
         isFlashing = true
         didClearPasscodeCache = false
@@ -970,6 +1181,7 @@ class AppViewModel: ObservableObject {
                     self.setStatus("Passcode theme applied successfully!")
                     self.showSuccessAlert = true
                     self.log("Passcode theme '%@' successfully flashed!", theme.name)
+                    DeviceProfileStore.recordPasscode(udid: udid, theme: theme.name, version: targetVer)
                 } else if let err = self.errorMessage {
                     self.setStatus(err)
                     self.log("ERROR: %@", err)
@@ -1150,6 +1362,10 @@ class AppViewModel: ObservableObject {
         guard let dev = device, dev.isUSBConnectedIPhone, let udid = dev.udid,
               let version = dev.passcodeCacheVersion else {
             errorMessage = L("Connect a supported iPhone with USB to restore the default passcode.")
+            return
+        }
+        guard udid == activeProfileUDID else {
+            errorMessage = L("The card list is switching to the connected iPhone. Try again in a moment.")
             return
         }
         guard !isFlashing && !isPullingSkins else { return }

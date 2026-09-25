@@ -46,6 +46,10 @@ struct WalletTileView: View {
     let onClearImage: () -> Void
     let onDelete: () -> Void
     let onStoreImage: (URL) -> Void
+    let onShowHistory: () -> Void
+    let onRestoreOriginal: () -> Void
+    let hasOriginal: Bool
+    let canRestoreOriginal: Bool
     @State private var isTargeted = false
 
     private let artworkShape = RoundedRectangle(cornerRadius: 10, style: .continuous)
@@ -152,6 +156,10 @@ struct WalletTileView: View {
             NSPasteboard.general.setString(card.id, forType: .string)
         }
         Divider()
+        Button(L("Artwork History…"), action: onShowHistory)
+        Button(L("Restore Original Artwork…"), action: onRestoreOriginal)
+            .disabled(!hasOriginal || !canRestoreOriginal)
+        Divider()
         Button(L("Remove from list"), role: .destructive, action: onDelete)
     }
 }
@@ -175,15 +183,28 @@ extension ContentView {
                     .accessibilityLabel(Text(L("Search cards by hash or number")))
                     Menu {
                         Button(L("Select All")) { for i in vm.cards.indices { vm.cards[i].isSelected = true } }
+                            .disabled(vm.cards.isEmpty)
                         Button(L("Deselect All")) { for i in vm.cards.indices { vm.cards[i].isSelected = false } }
+                            .disabled(vm.cards.isEmpty)
+                        if vm.legacyCardCount > 0 && vm.activeProfileUDID != nil {
+                            Divider()
+                            Button(L("Add Cards Saved by an Earlier Version")) { vm.importLegacyCards() }
+                        }
                         Divider()
                         Button(L("Clear All"), role: .destructive) { vm.clearAllCards() }
+                            .disabled(vm.cards.isEmpty)
                     } label: {
                         Label(L("Selection"), systemImage: "checklist")
                     }
                     .menuStyle(.borderlessButton)
                     .fixedSize()
-                    .disabled(vm.cards.isEmpty)
+                    .disabled(vm.cards.isEmpty && vm.legacyCardCount == 0)
+                }
+                if let notice = vm.profileNotice {
+                    NoticeBar(title: notice) {
+                        Image(systemName: "iphone.slash")
+                            .foregroundStyle(.secondary)
+                    }
                 }
                 if vm.isScanningCards { scanningNoticeBanner }
                 if hiddenReadyToFlashCount > 0 {
@@ -215,7 +236,11 @@ extension ContentView {
                                         onPickImage: { openCardImagePicker(for: vm.cards[index].id) },
                                         onClearImage: { vm.clearCardImage(for: vm.cards[index].id) },
                                         onDelete: { vm.deleteCard(id: vm.cards[index].id) },
-                                        onStoreImage: { vm.storeSkin(for: vm.cards[index].id, url: $0) }
+                                        onStoreImage: { vm.storeSkin(for: vm.cards[index].id, url: $0) },
+                                        onShowHistory: { vm.showArtworkHistory(for: vm.cards[index].id) },
+                                        onRestoreOriginal: { confirmRestoreOriginal(for: vm.cards[index].id) },
+                                        hasOriginal: vm.hasOriginalArtwork(for: vm.cards[index].id),
+                                        canRestoreOriginal: vm.canRestoreOriginal
                                     )
                                 }
                             }
@@ -379,9 +404,10 @@ extension ContentView {
         } actions: {
             Button(L("Start Scanning")) { vm.startCardScanning() }
                 .buttonStyle(.borderedProminent)
-                .disabled(vm.device?.connected != true)
+                .disabled(!vm.canScanCards)
             Button(L("Add Hashes Manually")) { vm.showAddCardSheet = true }
                 .buttonStyle(.bordered)
+                .disabled(vm.activeProfileUDID == nil)
         }
     }
     
@@ -401,6 +427,18 @@ extension ContentView {
         }
     }
     
+    /// Asks before writing the saved original back to the iPhone.
+    func confirmRestoreOriginal(for cardId: String) {
+        let alert = NSAlert()
+        alert.messageText = L("Restore the original artwork?")
+        alert.informativeText = L("FaceLift writes the artwork it saved before first changing this card back to %@. Designs you applied stay in the card's history.", vm.activeProfileName)
+        alert.addButton(withTitle: L("Restore"))
+        alert.addButton(withTitle: L("Cancel"))
+        if alert.runModal() == .alertFirstButtonReturn {
+            vm.restoreOriginalArtwork(for: cardId)
+        }
+    }
+
     func openBulkImagePicker() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.image]

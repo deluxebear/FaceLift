@@ -125,16 +125,18 @@ def cmd_pull_card(udid: str, card_hash: str, dest_path: str) -> bool:
     return bool(leaf)
 
 
-def cmd_snapshot_card(udid: str, card_hash: str, dest_path: str) -> bool:
-    """Captures the card's untouched artwork once, then shows it in the app.
+def cmd_snapshot_card(udid: str, card_hash: str, dest_path: str | None = None) -> bool:
+    """Captures the card's untouched artwork once.
 
     The capture is kept byte for byte under originals/ so it can be written
-    back later. An existing capture is never replaced.
+    back later; an existing capture is never replaced. With `dest_path`, a
+    preview is also copied there for the app to show. Without it the shown
+    artwork is left alone (used right before flashing a new design).
     """
     if _card_not_in_profile(udid, card_hash):
         return False
-    dest = _skin_destination(udid, card_hash, dest_path)
-    if dest is None:
+    dest = _skin_destination(udid, card_hash, dest_path) if dest_path else None
+    if dest_path and dest is None:
         print(json.dumps({"ok": False, "reason": "destination", "asset": "", "path": ""}))
         return False
     manifest = device_profiles.original_manifest(udid, card_hash)
@@ -156,14 +158,15 @@ def cmd_snapshot_card(udid: str, card_hash: str, dest_path: str) -> bool:
             _write_preview((directory / leaf).read_bytes(), preview)
         except (OSError, subprocess.SubprocessError):
             pass
-    if leaf and preview.is_file():
+    if dest and leaf and preview.is_file():
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(preview.read_bytes())
+    shown = bool(dest and leaf and dest.is_file())
     print(json.dumps({
-        "ok": bool(leaf) and dest.is_file(),
+        "ok": bool(leaf) and (dest is None or shown),
         "reason": "" if leaf else "missing",
         "asset": leaf or "",
-        "path": os.fspath(dest) if leaf else "",
+        "path": os.fspath(dest) if shown else "",
         "captured": True,
         "suspectModified": bool(manifest.get("suspectModified")),
     }))
@@ -762,8 +765,12 @@ def main():
     elif norm_cmd == "pull-card" and len(sys.argv) > 4:
         if not cmd_pull_card(sys.argv[2], sys.argv[3], sys.argv[4]):
             sys.exit(1)
-    elif norm_cmd == "snapshot-card" and len(sys.argv) > 4:
-        if not cmd_snapshot_card(sys.argv[2], sys.argv[3], sys.argv[4]):
+    elif norm_cmd == "snapshot-card" and len(sys.argv) > 3:
+        # Succeeds whenever the original is saved, even for a card that has
+        # none of the artwork leaves; the JSON line says what was found.
+        cmd_snapshot_card(sys.argv[2], sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else None)
+        if not device_profiles.valid_udid(sys.argv[2]) or not device_profiles.valid_card(sys.argv[3]) \
+                or device_profiles.original_manifest(sys.argv[2], sys.argv[3]) is None:
             sys.exit(1)
     elif norm_cmd == "restore-original" and len(sys.argv) > 3:
         if not cmd_restore_original(sys.argv[2], sys.argv[3]):
