@@ -562,7 +562,35 @@ def read_card_artwork(udid: str, card_hash: str, dest_path: str) -> str | None:
     return None
 
 
-def _borrow_pass_file(udid: str, absolute: str) -> bytes | None:
+def read_card_originals(udid: str, card_hash: str, leaves: tuple[str, ...]) -> dict[str, bytes | None]:
+    """Reads every artwork leaf FaceLift may overwrite, byte for byte.
+
+    A leaf the pass does not have comes back as None. Raises
+    CardReadSyncError when the phone did not finish a sync, so a partial
+    capture is never mistaken for the original.
+    """
+    if not CARD_HASH_RE.fullmatch(card_hash):
+        raise ValueError("Invalid card identifier")
+    directory = f"/var/mobile/Library/Passes/Cards/{card_hash}.pkpass"
+    payloads: dict[str, bytes | None] = {}
+    for leaf in leaves:
+        payload = _borrow_pass_file(udid, f"{directory}/{leaf}")
+        payloads[leaf] = payload if image_payload(payload or b"") else None
+    return payloads
+
+
+def remove_pass_file(udid: str, card_hash: str, leaf: str) -> bool:
+    """Moves one artwork leaf out of the pass and lets sweep delete it.
+
+    Returns True when the leaf existed and was taken out.
+    """
+    if not CARD_HASH_RE.fullmatch(card_hash):
+        raise ValueError("Invalid card identifier")
+    absolute = f"/var/mobile/Library/Passes/Cards/{card_hash}.pkpass/{leaf}"
+    return _borrow_pass_file(udid, absolute, restore=False) is not None
+
+
+def _borrow_pass_file(udid: str, absolute: str, restore: bool = True) -> bytes | None:
     asset = pass_asset_id(absolute)
     parent, leaf = absolute.rsplit("/", 1)
     token = secrets.token_hex(10)
@@ -634,7 +662,7 @@ def _borrow_pass_file(udid: str, absolute: str) -> bytes | None:
                 recovered,
                 os.fspath(snapshot_root),
             )
-        if payload:
+        if payload and restore:
             if not write_file(udid, parent, leaf, payload):
                 raise CardReadSyncError("restore failed")
         native("sweep", udid)

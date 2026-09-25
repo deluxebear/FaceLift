@@ -8,6 +8,7 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+import device_profiles
 import facelift_backend
 import apply_card_skin
 
@@ -17,7 +18,22 @@ PNG_1X1 = base64.b64decode(
 )
 
 
+UDID = "00008140-000A1B2C3D4E5F6A"
+CARD = "M6nDwZrkYbFlsodLgCbvyFZQ1cX="
+
+
 class CardFlashTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._support = tempfile.TemporaryDirectory()
+        self._patch = patch.object(device_profiles, "SUPPORT_ROOT", Path(self._support.name))
+        self._patch.start()
+        device_profiles.save_profile_cards(UDID, [CARD])
+        device_profiles.store_original(UDID, CARD, {"cardBackgroundCombined.pdf": b"%PDF-original"})
+
+    def tearDown(self) -> None:
+        self._patch.stop()
+        self._support.cleanup()
+
     def test_flash_writes_pdf_and_invalidates_placeholder(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             image_path = Path(temporary) / "card.png"
@@ -28,7 +44,7 @@ class CardFlashTests(unittest.TestCase):
                 patch.object(facelift_backend, "write_file", write_file),
                 redirect_stdout(io.StringIO()),
             ):
-                result = facelift_backend.cmd_flash("device", "card", str(image_path))
+                result = facelift_backend.cmd_flash(UDID, CARD, str(image_path))
 
         self.assertTrue(result)
 
@@ -52,7 +68,7 @@ class CardFlashTests(unittest.TestCase):
         for extension in (".cache", ".pkcache"):
             for leaf in facelift_backend.CACHE_FILES:
                 self.assertIn(
-                    (f"/var/mobile/Library/Passes/Cards/card{extension}", leaf),
+                    (f"/var/mobile/Library/Passes/Cards/{CARD}{extension}", leaf),
                     cache_entries,
                 )
 
@@ -69,7 +85,7 @@ class CardFlashTests(unittest.TestCase):
                 patch.object(facelift_backend, "write_file", write_file),
                 redirect_stdout(output),
             ):
-                result = facelift_backend.cmd_flash("device", "card", str(image_path))
+                result = facelift_backend.cmd_flash(UDID, CARD, str(image_path))
 
         messages = [json.loads(line) for line in output.getvalue().splitlines()]
         self.assertFalse(result)
@@ -92,7 +108,7 @@ class CardFlashTests(unittest.TestCase):
                 ),
                 redirect_stdout(output),
             ):
-                result = facelift_backend.cmd_flash("device", "card", str(image_path))
+                result = facelift_backend.cmd_flash(UDID, CARD, str(image_path))
 
         messages = [json.loads(line) for line in output.getvalue().splitlines()]
         self.assertFalse(result)

@@ -30,6 +30,7 @@ for bin_path in [
     if os.path.isdir(bin_path) and bin_path not in os.environ.get("PATH", ""):
         os.environ["PATH"] = f"{bin_path}:{os.environ.get('PATH', '')}"
 
+import device_profiles
 from apply_card_skin import (
     native,
     operation_ok,
@@ -45,15 +46,14 @@ TARGET_ASSETS = [
 
 CACHE_FILES = ["FrontFace", "Preview"]
 
-# Card hashes live in exactly one place, shared with the macOS app. The legacy
-# dotfiles are only read once, to migrate older installs.
-CARDS_STORE_PATH = Path.home() / "Library" / "Application Support" / "FaceLift" / "cards.json"
+# Cards are stored per iPhone (see device_profiles.py). The pre-profile
+# cards.json and the dotfiles below are only moved into Legacy/, never
+# assigned to a device without asking.
 LEGACY_STORE_PATHS = [
     Path.home() / ".facelift_cards.json",
     Path.home() / ".aircard_cards.json",
     Path.home() / ".lumicards_cards.json",
 ]
-PREDEFINED_CARDS = []
 
 CARD_REGEXES = [
     re.compile(r"/(?:Cards|Passes/Cards)/([-A-Za-z0-9_+=]{20,44})(?:\.pkpass|\.cache|\.pkcache|/|\s|\"|\'|\)|,|$)"),
@@ -62,21 +62,19 @@ CARD_REGEXES = [
 ]
 
 
-def load_saved_cards() -> list[str]:
-    """Loads saved card hashes from local storage."""
-    if CARDS_STORE_PATH.is_file():
-        try:
-            data = json.loads(CARDS_STORE_PATH.read_text("utf-8"))
-            if isinstance(data, list):
-                return data
-        except Exception:
-            pass
-        return list(PREDEFINED_CARDS)
-    migrated = migrate_legacy_cards()
-    if migrated:
-        save_cards(migrated)
-        return migrated
-    return list(PREDEFINED_CARDS)
+def prepare_store() -> None:
+    """Moves every pre-profile card list into Legacy/cards.json."""
+    device_profiles.migrate_legacy_store()
+    found = migrate_legacy_cards()
+    if found:
+        merged = list(dict.fromkeys(device_profiles.legacy_card_ids() + found))
+        device_profiles.write_json(device_profiles.legacy_dir() / "cards.json", merged)
+
+
+def load_saved_cards(udid: str) -> list[str]:
+    """Loads the card hashes saved for one iPhone."""
+    prepare_store()
+    return device_profiles.profile_card_ids(udid)
 
 
 def migrate_legacy_cards() -> list[str]:
@@ -98,14 +96,9 @@ def migrate_legacy_cards() -> list[str]:
     return found
 
 
-def save_cards(cards: list[str]):
-    """Saves unique card hashes to local storage."""
-    try:
-        unique = list(dict.fromkeys(cards))
-        CARDS_STORE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        CARDS_STORE_PATH.write_text(json.dumps(unique, indent=2), encoding="utf-8")
-    except Exception:
-        pass
+def save_cards(udid: str, cards: list[str], source: str = "manual") -> None:
+    """Saves unique card hashes for one iPhone."""
+    device_profiles.save_profile_cards(udid, cards, source)
 
 
 def find_device_helper() -> str | None:
@@ -144,8 +137,12 @@ def list_devices() -> list[dict]:
     return []
 
 
-def get_connected_device() -> dict | None:
-    """Picks the connected iPhone out of the enumerated devices."""
+def get_connected_device(prefer: str | None = None) -> dict | None:
+    """Picks the connected iPhone out of the enumerated devices.
+
+    `prefer` keeps the choice on the iPhone already in use while it stays
+    connected, so two connected phones never swap on each poll.
+    """
     usable = [d for d in list_devices() if d.get("udid") and d.get("product")]
     if not usable:
         return None
@@ -155,6 +152,9 @@ def get_connected_device() -> dict | None:
     # work there.
     iphones = [d for d in usable if str(d["product"]).startswith("iPhone")]
     pool = iphones or usable
+    preferred = [d for d in pool if prefer and d["udid"] == prefer]
+    if preferred:
+        pool = preferred
     device = next((d for d in pool if d.get("connection") == "usb"), pool[0])
 
     return {
@@ -163,6 +163,15 @@ def get_connected_device() -> dict | None:
         "version": device.get("version") or "Unknown",
         "product": device["product"],
         "connection": device.get("connection") or "unknown",
+        "available": [
+            {
+                "udid": d["udid"],
+                "name": d.get("name") or "iPhone",
+                "product": d["product"],
+                "connection": d.get("connection") or "unknown",
+            }
+            for d in iphones or usable
+        ],
     }
 
 
@@ -268,8 +277,8 @@ def capture_card_hashes(udid: str, existing_cards: list[str] | None = None) -> l
         process.terminate()
         process.wait()
 
-    res = list(found_hashes)
-    save_cards(res)
+    res = list(dict.fromkeys([*(existing_cards or []), *found_hashes]))
+    save_cards(udid, res, source="scan")
     return res
 
 
@@ -331,8 +340,17 @@ def main():
         sys.exit(1)
 
     # 3. Card discovery / selection
-    saved_cards = load_saved_cards()
-    print(f"\n[2/5] Saved cards: {len(saved_cards)}")
+    saved_cards = load_saved_cards(device["udid"])
+    legacy = [h for h in device_profiles.legacy_card_ids() if h not in saved_cards]
+    if legacy and not saved_cards:
+        answer = input(
+            f"\nFound {len(legacy)} card(s) saved by an older FaceLift. "
+            f"Do they belong to {device['name']}? [y/N]: "
+        ).strip().lower()
+        if answer == "y":
+            saved_cards = legacy
+            save_cards(device["udid"], saved_cards, source="legacy")
+    print(f"\n[2/5] Saved cards for {device['name']}: {len(saved_cards)}")
     for idx, h in enumerate(saved_cards, 1):
         print(f"  [{idx}] {h}")
 
@@ -351,7 +369,7 @@ def main():
         for item in new_items:
             if item not in hashes:
                 hashes.append(item)
-        save_cards(hashes)
+        save_cards(device["udid"], hashes)
 
     if not hashes:
         print("❌ No cards available to flash.")
