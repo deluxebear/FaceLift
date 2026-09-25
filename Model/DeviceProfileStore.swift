@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 
 // Per-iPhone storage. The layout matches device_profiles.py, which the
 // backend uses to check that a card belongs to the iPhone it writes to:
@@ -233,6 +234,22 @@ enum DeviceProfileStore {
             guard FileManager.default.fileExists(atPath: url.path) else { return nil }
             return ArtworkHistoryItem(id: entry.file, url: url, appliedAt: entry.appliedAt, sha256: entry.sha256)
         }
+    }
+
+    private static func sha256(of url: URL) -> String? {
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// Whether the artwork shown for a card is the one FaceLift last wrote.
+    static func shownArtworkIsCurrent(udid: String, cardId: String) -> Bool {
+        guard let shown = skinURL(udid: udid, cardId: cardId),
+              let current = currentArtwork(udid: udid, cardId: cardId),
+              let shownHash = sha256(of: shown) else { return false }
+        if current.isOriginal {
+            return originalPreviewURL(udid: udid, cardId: cardId).flatMap(sha256(of:)) == shownHash
+        }
+        return current.sha256 == shownHash
     }
 
     static func currentArtwork(udid: String, cardId: String) -> CurrentArtwork? {
