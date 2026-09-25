@@ -9,7 +9,7 @@ make clean
 make all
 
 APP_NAME="FaceLift"
-APP_VERSION="${APP_VERSION:-1.0.1}"
+APP_VERSION="${APP_VERSION:-1.1.0}"
 # SIGN_IDENTITY: "-" keeps the current ad-hoc signing for local development.
 # Set it to "Developer ID Application: ..." (or let CI set it) to sign for
 # distribution. NOTARIZE=1 additionally notarizes and staples when the
@@ -59,7 +59,7 @@ cat << EOF > "${CONTENTS_DIR}/Info.plist"
     <key>CFBundleShortVersionString</key>
     <string>${APP_VERSION}</string>
     <key>CFBundleVersion</key>
-    <string>11</string>
+    <string>12</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
     <key>NSHighResolutionCapable</key>

@@ -1,12 +1,12 @@
 # FaceLift 🎴
 
 > **适用于 iOS 18+ 的 Apple Wallet 卡面定制与锁屏密码主题工具(无需越狱)**  
-> **v1.0.1** — 基于 `airlift` AirTraffic 同步漏洞实现。
+> **v1.1.0** — 基于 `airlift` AirTraffic 同步漏洞实现。
 
 **语言:** [English](README.md) | 简体中文
 
 > [!IMPORTANT]
-> **已测试环境:** 目前 v1.0.1 仅在 **macOS 27**(主机)驱动 **iPhone 16 Pro(iOS 27.0)** 的组合下完成真机测试。其他 macOS 或 iOS 版本应可正常使用,但尚未验证,欢迎反馈。
+> **已测试环境:** 目前 v1.1.0 仅在 **macOS 27**(主机)驱动 **iPhone 16 Pro(iOS 27.0)** 的组合下完成真机测试。其他 macOS 或 iOS 版本应可正常使用,但尚未验证,欢迎反馈。
 
 ---
 
@@ -17,6 +17,14 @@
 | ![钱包卡片](docs/screenshots/cards.png) | ![锁屏密码主题](docs/screenshots/passcode-theme.png) | ![制作主题](docs/screenshots/theme-creator.png) |
 
 ---
+
+## v1.1.0 新增功能
+- 📱 **每台 iPhone 独立的卡片列表:** 每台 iPhone 的卡片、卡面和历史记录各自保存在 `~/Library/Application Support/FaceLift/Devices/<udid>/`。卡片不在某台 iPhone 的列表中时,FaceLift 不会把它写入这台手机。
+- 🛟 **原始卡面备份与恢复:** 首次写入前,FaceLift 会逐字节保存每张卡的原始卡面,之后随时可以写回。
+- 🕘 **卡面历史:** 每次写入都会按卡片记录;当前在 iPhone 上的卡面会被标出,写入完成的卡片会自动取消勾选。
+- 🔄 **修复 iOS 27 上卡面不更新:** 写入后会真正删除 Wallet 已渲染的旧卡面缓存,新卡面不再被旧图覆盖。*(来自 AirCard 上游)*
+- 🔍 **卡片扫描更可靠:** 扫描器改为读取 iPhone 的统一日志(含 Info/Debug 事件),修复了 iOS 18.6.2 上扫描不到卡片的问题,并在日志中显示扫描器状态。*(来自 AirCard 上游)*
+- ⚡ **自动识别密码主题目标:** 连接时自动识别 iPhone 的键盘语言和粗体文本设置,写入密码主题时只写这台设备需要的文件。*(来自 AirCard 上游)*
 
 ## v1.0.1 新增功能
 - 🗂️ **统一卡片存储:** 卡片列表现在只保存在 `~/Library/Application Support/FaceLift/cards.json`。旧版本保存的列表会在首次启动时自动迁移,旧副本随之停用,不会再被读回。

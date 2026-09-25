@@ -1,12 +1,12 @@
 # FaceLift 🎴
 
 > **Apple Wallet Card Skinner & Lockscreen Passcode Themer for iOS 18+ (No Jailbreak Required)**  
-> **v1.0.1** — Powered by the `airlift` AirTraffic sync exploit.
+> **v1.1.0** — Powered by the `airlift` AirTraffic sync exploit.
 
 **Language:** English | [简体中文](README.zh-CN.md)
 
 > [!IMPORTANT]
-> **Tested configuration:** So far v1.0.1 has only had real-device testing on **macOS 27** (host) driving an **iPhone 16 Pro on iOS 27.0**. Other macOS or iOS versions should work but are not yet verified — feedback welcome.
+> **Tested configuration:** So far v1.1.0 has only had real-device testing on **macOS 27** (host) driving an **iPhone 16 Pro on iOS 27.0**. Other macOS or iOS versions should work but are not yet verified — feedback welcome.
 
 ---
 
@@ -17,6 +17,14 @@
 | ![Wallet Cards](docs/screenshots/cards.png) | ![Passcode Themes](docs/screenshots/passcode-theme.png) | ![Theme Creator](docs/screenshots/theme-creator.png) |
 
 ---
+
+## What's New in v1.1.0
+- 📱 **Per-iPhone Card Lists:** Every iPhone now keeps its own cards, skins and history under `~/Library/Application Support/FaceLift/Devices/<udid>/`. FaceLift refuses to write a card to an iPhone whose list does not include it.
+- 🛟 **Original Artwork Backup & Restore:** Before the first flash, FaceLift saves each card's untouched artwork byte for byte, and can write it back at any time.
+- 🕘 **Artwork History:** Every flash is recorded per card; the artwork currently on the iPhone is marked, and flashed cards are deselected automatically.
+- 🔄 **Stale Card Art Fixed on iOS 27:** Wallet's rendered card faces are now truly removed after a flash, so the new artwork shows up instead of the old one. *(from AirCard upstream)*
+- 🔍 **More Reliable Card Scanning:** The scanner reads the iPhone's unified log, including Info/Debug events, fixing scans that found no cards on iOS 18.6.2, and reports scanner status in the log. *(from AirCard upstream)*
+- ⚡ **Passcode Target Auto-Detect:** The iPhone's keyboard language and Bold Text setting are detected on connect, so passcode themes flash only the files that device needs. *(from AirCard upstream)*
 
 ## What's New in v1.0.1
 - 🗂️ **Single Card Store:** Your card list now lives only in `~/Library/Application Support/FaceLift/cards.json`. Lists saved by older versions are migrated automatically on first launch, and the old copies are retired so they no longer come back.
