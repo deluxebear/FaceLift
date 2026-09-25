@@ -68,7 +68,7 @@ struct WalletTileView: View {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(L("Card #%@", String(index + 1)))
                         .font(.headline)
-                    Text(card.customImage == nil ? L("Artwork not set") : L("Artwork ready"))
+                    Text(card.customImage == nil ? L("Artwork not set") : (card.isOnDevice ? L("On iPhone") : L("Artwork ready")))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
