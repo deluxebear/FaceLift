@@ -30,7 +30,7 @@ extension AppViewModel {
         case .cards: return canFlashCards
         case .passcode: return canFlashPasscode
         case .creator: return canFlashCreator
-        case .device: return false
+        case .wallpaper, .device: return false
         }
     }
 }

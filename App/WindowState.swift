@@ -4,6 +4,12 @@ import SwiftUI
 /// Actions that need an open panel or window-local state are routed through
 /// `WindowState.send(_:)` and handled by `ContentView.perform(_:)`.
 enum WindowAction: Equatable {
+    case importVideo
+    case generateLivePhoto
+    case saveLivePhoto
+    case exportLivePhoto
+    case clearVideo
+    case cancelVideo
     case importTheme
     case choosePoster
     case setSkinForSelected

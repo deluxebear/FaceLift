@@ -4,7 +4,17 @@ extension ContentView {
     @ToolbarContentBuilder
     var toolbarContent: some ToolbarContent {
         ToolbarItem(placement: .principal) {
-            ActivityStatusView(vm: vm)
+            if window.section == .wallpaper {
+                HStack(spacing: 8) {
+                    if wallpaper.isBusy { ProgressView().controlSize(.small) }
+                    Text(wallpaper.status).font(.callout).foregroundStyle(.secondary)
+                    if wallpaper.operation == .generating {
+                        Text("\(Int(wallpaper.progress * 100))%").monospacedDigit()
+                    }
+                }
+            } else {
+                ActivityStatusView(vm: vm)
+            }
         }
         ToolbarItemGroup(placement: .automatic) {
             pageActions
@@ -61,6 +71,19 @@ extension ContentView {
             .disabled(!vm.canExportCreator)
             .help(L("Export .passthm..."))
             targetVersionPicker
+        case .wallpaper:
+            Button { perform(.importVideo) } label: {
+                Label(L("Choose Video..."), systemImage: "video.badge.plus")
+            }
+            .disabled(wallpaper.isBusy)
+            Button { perform(.exportLivePhoto) } label: {
+                Label(L("Export Paired Files..."), systemImage: "square.and.arrow.up")
+            }
+            .disabled(!wallpaper.canExport)
+            Button { perform(.clearVideo) } label: {
+                Label(L("Clear Video"), systemImage: "trash")
+            }
+            .disabled(wallpaper.source == nil || wallpaper.isBusy)
         case .device:
             Button { perform(.refreshDevice) } label: {
                 Label(L("Refresh device connection"), systemImage: "arrow.clockwise")
@@ -98,6 +121,16 @@ extension ContentView {
             .labelStyle(.titleAndIcon)
             .buttonStyle(.borderedProminent)
             .disabled(!vm.canFlashCreator)
+        case .wallpaper:
+            if wallpaper.canCancel {
+                Button(L("Cancel")) { perform(.cancelVideo) }
+            }
+            Button { perform(.generateLivePhoto) } label: {
+                Label(L("Create Live Photo"), systemImage: "livephoto")
+            }
+            .labelStyle(.titleAndIcon)
+            .buttonStyle(.borderedProminent)
+            .disabled(!wallpaper.canGenerate)
         case .device:
             EmptyView()
         }

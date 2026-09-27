@@ -224,16 +224,17 @@ enum PasscodeBoldTarget: String, CaseIterable, Identifiable {
 }
 
 enum WorkspaceSection: String, CaseIterable, Hashable {
-    case cards, passcode, creator, device
+    case cards, passcode, creator, wallpaper, device
 
     /// Sidebar "Customize" group, in display order.
-    static let customize: [WorkspaceSection] = [.cards, .passcode, .creator]
+    static let customize: [WorkspaceSection] = [.cards, .passcode, .creator, .wallpaper]
 
     @MainActor var title: String {
         switch self {
         case .cards: return L("Cards")
         case .passcode: return L("Lock Screen Themes")
         case .creator: return L("Theme Creator")
+        case .wallpaper: return L("Live Photo Wallpaper")
         case .device: return L("Device Connection")
         }
     }
@@ -243,6 +244,7 @@ enum WorkspaceSection: String, CaseIterable, Hashable {
         case .cards: return L("Change the artwork of your Wallet cards.")
         case .passcode: return L("Import, preview and apply a .passthm theme.")
         case .creator: return L("Use a poster or custom images for each key.")
+        case .wallpaper: return L("Turn a short video into a Live Photo for your iPhone Lock Screen.")
         case .device: return L("Check your iPhone and connection before writing.")
         }
     }
@@ -252,16 +254,18 @@ enum WorkspaceSection: String, CaseIterable, Hashable {
         case .cards: return "creditcard"
         case .passcode: return "lock.iphone"
         case .creator: return "square.grid.3x3"
+        case .wallpaper: return "livephoto"
         case .device: return "iphone"
         }
     }
 
-    /// ⌘1–⌘4 in the View menu.
+    /// Keep existing shortcuts stable; wallpaper uses ⌘5.
     var shortcut: KeyEquivalent {
         switch self {
         case .cards: return "1"
         case .passcode: return "2"
         case .creator: return "3"
+        case .wallpaper: return "5"
         case .device: return "4"
         }
     }

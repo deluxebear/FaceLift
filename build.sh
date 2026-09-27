@@ -62,6 +62,8 @@ cat << EOF > "${CONTENTS_DIR}/Info.plist"
     <string>12</string>
     <key>LSMinimumSystemVersion</key>
     <string>14.0</string>
+    <key>NSPhotoLibraryAddUsageDescription</key>
+    <string>FaceLift adds the Live Photos you create to your Photos library so you can use them on your iPhone.</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSPrincipalClass</key>
@@ -89,7 +91,7 @@ cp facelift_backend.py "$RESOURCES_DIR/"
 cp card_assets.py "$RESOURCES_DIR/"
 cp device_profiles.py "$RESOURCES_DIR/"
 cp Resources/DefaultPasscodePoster.png "$RESOURCES_DIR/"
-cp -R Resources/en.lproj Resources/zh-Hans.lproj "$RESOURCES_DIR/"
+cp -R Resources/en.lproj Resources/zh-Hans.lproj Resources/LivePhoto "$RESOURCES_DIR/"
 
 # A bundle without these cannot talk to a device at all, so fail here instead
 # of shipping an app that reports "No iPhone found" for every user.

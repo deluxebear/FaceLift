@@ -6,6 +6,7 @@ import SwiftUI
 struct FaceLiftCommands: Commands {
     @FocusedObject private var vm: AppViewModel?
     @FocusedObject private var window: WindowState?
+    @FocusedObject private var wallpaper: VideoWallpaperModel?
 
     /// Window- or view-model-owned sheets and alerts; commands that act on
     /// the window stay disabled while one is up.
@@ -15,6 +16,7 @@ struct FaceLiftCommands: Commands {
             || vm?.showAddCardSheet == true
             || vm?.showSuccessAlert == true
             || vm?.errorMessage != nil
+            || wallpaper?.errorMessage != nil
     }
 
     var body: some Commands {
@@ -24,6 +26,15 @@ struct FaceLiftCommands: Commands {
         }
 
         CommandGroup(replacing: .newItem) {
+            Button(L("Choose Video...")) { window?.send(.importVideo) }
+                .keyboardShortcut("o", modifiers: [.command, .option])
+                .disabled(isBlocked || wallpaper?.isBusy == true)
+            Button(L("Export Paired Files...")) { window?.send(.exportLivePhoto) }
+                .disabled(isBlocked || window?.section != .wallpaper || wallpaper?.canExport != true)
+            Button(L("Save to Mac Photos")) { window?.send(.saveLivePhoto) }
+                .disabled(isBlocked || window?.section != .wallpaper || wallpaper?.canSave != true)
+            Button(L("Create Live Photo")) { window?.send(.generateLivePhoto) }
+                .disabled(isBlocked || window?.section != .wallpaper || wallpaper?.canGenerate != true)
             Button(L("Import .passthm...")) { window?.send(.importTheme) }
                 .keyboardShortcut("o")
                 .disabled(isBlocked)

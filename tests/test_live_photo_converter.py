@@ -1,0 +1,28 @@
+"""Exercise real AVFoundation encoding and PHLivePhoto validation without Photos writes."""
+
+import subprocess
+import tempfile
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def test_live_photo_converter():
+    sdk = subprocess.check_output(["xcrun", "--sdk", "macosx", "--show-sdk-path"], text=True).strip()
+    with tempfile.TemporaryDirectory() as tmp:
+        binary = Path(tmp) / "live_photo_tests"
+        subprocess.run(
+            ["swiftc", "-sdk", sdk, "-parse-as-library",
+             str(ROOT / "Model" / "VideoWallpaper.swift"),
+             str(ROOT / "Model" / "LivePhotoConverter.swift"),
+             str(ROOT / "tests" / "swift" / "LivePhotoConverterTests.swift"),
+             "-o", str(binary)],
+            check=True, capture_output=True, text=True,
+        )
+        result = subprocess.run([str(binary), str(ROOT / "Resources" / "LivePhoto" / "WallpaperMetadata.mov")], capture_output=True, text=True, timeout=120)
+        assert result.returncode == 0, result.stdout + result.stderr
+
+
+if __name__ == "__main__":
+    test_live_photo_converter()
+    print("ok")

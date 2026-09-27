@@ -38,6 +38,7 @@
 - 🖱️ **Drag & Drop Everywhere:** Drop a `.passthm` onto the keypad preview, or an image onto a card or an individual key.
 
 ## Features
+- 🎞️ **Video to Live Photo (experimental):** Trim a short clip, choose a cover and portrait crop, then generate a validated Live Photo. Save it to Mac Photos or export the paired files. iPhone motion wallpaper eligibility still requires device testing; see the [usage and validation notes](docs/video-wallpaper.md) (Chinese).
 - 🎨 **Custom Card Skins:** Assign custom artwork, textures, or bank logos to Apple Pay and Wallet cards.
 - 🖥️ **Native macOS Interface:** A rebuilt sidebar + preview + inspector layout with opaque, high-contrast surfaces and full Light/Dark mode support.
 - 🔢 **Lock Screen Passcode Themes (.passthm):** Apply custom keypad button artwork from popular `.passthm` themes directly to iOS 18+ lockscreen.

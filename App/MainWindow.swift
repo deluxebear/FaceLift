@@ -6,6 +6,7 @@ struct ContentView: View {
     @AppStorage(AppAppearanceChoice.storageKey) private var appearance: AppAppearanceChoice = .system
     @StateObject var vm = AppViewModel()
     @StateObject var window = WindowState()
+    @StateObject var wallpaper = VideoWallpaperModel()
     @ObservedObject var language = AppLanguage.shared
     @State var cardSearch = ""
     @State var manualHashFeedback = ""
@@ -13,6 +14,7 @@ struct ContentView: View {
     @State var dragOffsetStart: CGPoint = .zero
     @State var dragKeyStartOffsets: [String: CGPoint] = [:]
     @State var isCanvasTargeted = false
+    @State var isWallpaperTargeted = false
 
     // Forwarders so workspace code keeps reading and writing window state
     // by its original names.
@@ -38,6 +40,7 @@ struct ContentView: View {
         .tint(Color.brand)
         .focusedSceneObject(vm)
         .focusedSceneObject(window)
+        .focusedSceneObject(wallpaper)
         .alert(successTitle, isPresented: $vm.showSuccessAlert) {
             Button(L("OK")) {}
         } message: {
@@ -50,12 +53,12 @@ struct ContentView: View {
             Text(L("This backs up and removes the passcode keypad cache for this iOS version. Restart the iPhone afterward so iOS can rebuild its default keypad."))
         }
         .alert(L("Error"), isPresented: Binding(
-            get: { vm.errorMessage != nil },
-            set: { if !$0 { vm.errorMessage = nil } }
+            get: { vm.errorMessage != nil || wallpaper.errorMessage != nil },
+            set: { if !$0 { vm.errorMessage = nil; wallpaper.errorMessage = nil } }
         )) {
-            Button(L("OK")) { vm.errorMessage = nil }
+            Button(L("OK")) { vm.errorMessage = nil; wallpaper.errorMessage = nil }
         } message: {
-            Text(vm.errorMessage ?? "")
+            Text(vm.errorMessage ?? wallpaper.errorMessage ?? "")
         }
         .sheet(isPresented: $window.showCredits) { creditsSheet }
         .sheet(isPresented: $window.showGuide) { guideSheet }
@@ -147,6 +150,7 @@ struct ContentView: View {
         switch window.section {
         case .cards: walletWorkspace
         case .passcode, .creator: themeCanvas
+        case .wallpaper: videoWallpaperWorkspace
         case .device: deviceWorkspace
         }
     }
@@ -157,6 +161,7 @@ struct ContentView: View {
         case .cards: walletPreview
         case .passcode: applyThemeInspector
         case .creator: creatorInspector
+        case .wallpaper: videoWallpaperInspector
         case .device: EmptyView()
         }
     }
@@ -186,6 +191,9 @@ struct ContentView: View {
     /// Keeps the view model's tab/mode in step with the sidebar selection.
     private func syncViewModel(to destination: WorkspaceSection) {
         switch destination {
+        case .wallpaper:
+            if vm.isScanningCards { vm.stopCardScanning() }
+            vm.dismissScanPrompt()
         case .cards, .device:
             vm.selectedTab = .walletCards
         case .passcode:
@@ -199,6 +207,19 @@ struct ContentView: View {
 
     func perform(_ action: WindowAction) {
         switch action {
+        case .importVideo:
+            navigate(.wallpaper)
+            openVideoPicker()
+        case .generateLivePhoto:
+            wallpaper.generate()
+        case .saveLivePhoto:
+            wallpaper.saveToPhotos()
+        case .exportLivePhoto:
+            openLivePhotoExportPanel()
+        case .clearVideo:
+            wallpaper.clear()
+        case .cancelVideo:
+            wallpaper.cancel()
         case .importTheme:
             navigate(.passcode)
             openPasscodeThemePicker()
@@ -215,7 +236,7 @@ struct ContentView: View {
             case .cards: vm.applySkin()
             case .passcode: vm.flashPasscodeTheme()
             case .creator: vm.flashCreatedTheme()
-            case .device: break
+            case .wallpaper, .device: break
             }
         case .restoreDefaultPasscode:
             window.showRestorePasscodeConfirmation = true
