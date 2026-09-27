@@ -25,3 +25,10 @@ jobs:
         run: |
           python -m pip install --quiet pytest
           python -m pytest tests/test_localization.py tests/test_live_photo_converter.py -q
+
+      - name: Type-check the app
+        # Report compile errors even when the tests above fail.
+        if: success() || failure()
+        run: |
+          swiftc -typecheck -sdk "$(xcrun --sdk macosx --show-sdk-path)" -parse-as-library \
+            -target arm64-apple-macosx14.0 $(find App Model Workspaces -name '*.swift' | sort)

@@ -511,3 +511,7 @@
 "Choose a folder. FaceLift creates a new subfolder containing the paired JPEG and MOV files." = "选择文件夹。FaceLift 会新建子文件夹，保存配对的 JPEG 和 MOV 文件。";
 "Clear Video" = "清除视频";
 "Create Live Photo" = "生成实况照片";
+"Discard the unsaved Live Photo?" = "放弃未保存的实况照片？";
+"Discard" = "放弃";
+"The Live Photo you created has not been saved to Photos or exported. Continuing deletes it." = "生成的实况照片尚未存入照片或导出，继续操作会将其删除。";
+"Shaded areas fall outside this iPhone's screen. Change Screen Shape to use the full frame." = "阴影区域超出这台 iPhone 的屏幕范围。更改屏幕比例即可使用完整画面。";

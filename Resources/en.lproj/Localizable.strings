@@ -511,3 +511,7 @@
 "Choose a folder. FaceLift creates a new subfolder containing the paired JPEG and MOV files." = "Choose a folder. FaceLift creates a new subfolder containing the paired JPEG and MOV files.";
 "Clear Video" = "Clear Video";
 "Create Live Photo" = "Create Live Photo";
+"Discard the unsaved Live Photo?" = "Discard the unsaved Live Photo?";
+"Discard" = "Discard";
+"The Live Photo you created has not been saved to Photos or exported. Continuing deletes it." = "The Live Photo you created has not been saved to Photos or exported. Continuing deletes it.";
+"Shaded areas fall outside this iPhone's screen. Change Screen Shape to use the full frame." = "Shaded areas fall outside this iPhone's screen. Change Screen Shape to use the full frame.";

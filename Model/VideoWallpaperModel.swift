@@ -22,7 +22,11 @@ final class VideoWallpaperModel: ObservableObject {
     // Framing edits delete the generated files, so reject them while an
     // operation (such as saving to Photos) may still be reading those files.
     @Published var format: WallpaperFormat = .classicPhone {
-        didSet { if isBusy { format = oldValue } else { draftChanged() } }
+        didSet {
+            if isBusy { format = oldValue; return }
+            if !applyingSuggestedFormat { formatChosenByUser = true }
+            draftChanged()
+        }
     }
     @Published var zoom = 1.0 {
         didSet { if isBusy { zoom = oldValue } else { draftChanged() } }
@@ -47,6 +51,9 @@ final class VideoWallpaperModel: ObservableObject {
     private var previewTask: Task<Void, Never>?
     private var playbackObserver: NSObjectProtocol?
     private var sourceAccess = false
+    /// A shape picked by hand wins over the one suggested for the connected iPhone.
+    private var formatChosenByUser = false
+    private var applyingSuggestedFormat = false
     private let resources = WallpaperTemporaryResources()
 
     var isBusy: Bool { operation != nil }
@@ -54,6 +61,9 @@ final class VideoWallpaperModel: ObservableObject {
     var canSave: Bool { generated != nil && !isBusy && resultState != .saved }
     var canExport: Bool { generated != nil && !isBusy }
     var canCancel: Bool { operation == .loading || operation == .generating }
+    /// A generated Live Photo that was neither saved nor exported is lost by
+    /// loading another video or clearing the draft.
+    var hasUnsavedResult: Bool { generated != nil && resultState == .generated }
     var maximumClipDuration: Double { min(3, source?.duration ?? 3) }
     var maximumClipStart: Double { max(0, (source?.duration ?? 0) - clipDuration) }
     var maximumCoverTime: Double { max(0, clipDuration - 1.0 / Double(WallpaperConversionRequest.frameRate)) }
@@ -81,9 +91,16 @@ final class VideoWallpaperModel: ObservableObject {
             horizontalPosition: horizontalPosition, verticalPosition: verticalPosition)
     }
 
-    func load(_ url: URL) {
+    /// `suggestedFormat` matches the connected iPhone's screen; it is ignored
+    /// once the user has chosen a screen shape.
+    func load(_ url: URL, suggestedFormat: WallpaperFormat? = nil) {
         guard !isBusy else { return }
         clear()
+        if let suggestedFormat, !formatChosenByUser, suggestedFormat != format {
+            applyingSuggestedFormat = true
+            format = suggestedFormat
+            applyingSuggestedFormat = false
+        }
         operation = .loading
         let access = url.startAccessingSecurityScopedResource()
         task = Task {

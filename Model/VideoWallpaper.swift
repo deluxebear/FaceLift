@@ -106,9 +106,22 @@ struct GeneratedLivePhoto {
     }
 
     /// A new directory per export avoids replacing an existing photo/video pair.
+    /// Exporting the same result to one folder again adds a numeric suffix.
     func export(to parent: URL) throws -> URL {
-        let destination = parent.appendingPathComponent("FaceLift-\(identifier.prefix(8))", isDirectory: true)
-        try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: false)
+        let base = "FaceLift-\(identifier.prefix(8))"
+        var destination = parent.appendingPathComponent(base, isDirectory: true)
+        var suffix = 2
+        while true {
+            do {
+                // Creating without intermediates fails instead of reusing a folder.
+                try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: false)
+                break
+            } catch {
+                guard suffix <= 99, FileManager.default.fileExists(atPath: destination.path) else { throw error }
+                destination = parent.appendingPathComponent("\(base)-\(suffix)", isDirectory: true)
+                suffix += 1
+            }
+        }
         do {
             try FileManager.default.copyItem(at: photoURL, to: destination.appendingPathComponent(photoURL.lastPathComponent))
             try FileManager.default.copyItem(at: videoURL, to: destination.appendingPathComponent(videoURL.lastPathComponent))

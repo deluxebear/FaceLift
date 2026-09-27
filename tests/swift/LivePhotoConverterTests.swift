@@ -1,6 +1,7 @@
 import Foundation
 import AVFoundation
 import ImageIO
+import VideoToolbox
 
 @main
 struct LivePhotoConverterTests {
@@ -9,10 +10,31 @@ struct LivePhotoConverterTests {
     }
 
     static func fixture(at url: URL, rotated: Bool = false) throws {
+        // A temporal change in the green channel catches covers extracted
+        // from the source's wrong time instead of the selected clip.
+        try fixture(at: url, times: (0..<60).map { CMTime(value: Int64($0), timescale: 30) },
+                    end: CMTime(seconds: 2, preferredTimescale: 30), rotated: rotated) { x, frame in
+            (x < 160 ? 0 : 220, UInt8(frame * 3), x < 160 ? 220 : 0)
+        }
+    }
+
+    /// Writes 320×180 frames at the given presentation times. `pixel` returns
+    /// the BGR value for column `x` of frame `frame`. `hlg` tags the movie as
+    /// BT.2020 HLG, the format of HDR iPhone recordings.
+    static func fixture(at url: URL, times: [CMTime], end: CMTime, rotated: Bool = false, hlg: Bool = false,
+                        pixel: (Int, Int) -> (UInt8, UInt8, UInt8)) throws {
         let writer = try AVAssetWriter(outputURL: url, fileType: .mov)
-        let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
-            AVVideoCodecKey: AVVideoCodecType.h264, AVVideoWidthKey: 320, AVVideoHeightKey: 180
-        ])
+        var settings: [String: Any] = [AVVideoCodecKey: AVVideoCodecType.h264, AVVideoWidthKey: 320, AVVideoHeightKey: 180]
+        if hlg {
+            // iPhone HDR recordings are 10-bit HEVC tagged BT.2020 HLG.
+            settings[AVVideoCodecKey] = AVVideoCodecType.hevc
+            settings[AVVideoCompressionPropertiesKey] = [AVVideoProfileLevelKey: kVTProfileLevel_HEVC_Main10_AutoLevel as String]
+            settings[AVVideoColorPropertiesKey] = [AVVideoColorPrimariesKey: AVVideoColorPrimaries_ITU_R_2020,
+                                                   AVVideoTransferFunctionKey: AVVideoTransferFunction_ITU_R_2100_HLG,
+                                                   AVVideoYCbCrMatrixKey: AVVideoYCbCrMatrix_ITU_R_2020]
+        }
+        try require(writer.canApply(outputSettings: settings, forMediaType: .video), "fixture settings unsupported")
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
         if rotated { input.transform = CGAffineTransform(a: 0, b: 1, c: -1, d: 0, tx: 180, ty: 0) }
         let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input,
             sourcePixelBufferAttributes: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
@@ -20,7 +42,7 @@ struct LivePhotoConverterTests {
         writer.add(input)
         try require(writer.startWriting(), "fixture writer failed")
         writer.startSession(atSourceTime: .zero)
-        for frame in 0..<60 {
+        for (frame, time) in times.enumerated() {
             while !input.isReadyForMoreMediaData { Thread.sleep(forTimeInterval: 0.002) }
             var buffer: CVPixelBuffer?
             CVPixelBufferPoolCreatePixelBuffer(nil, adaptor.pixelBufferPool!, &buffer)
@@ -31,23 +53,60 @@ struct LivePhotoConverterTests {
             for y in 0..<180 {
                 for x in 0..<320 {
                     let i = y * stride + x * 4
-                    // A temporal change in the green channel catches covers extracted
-                    // from the source's wrong time instead of the selected clip.
-                    base[i] = x < 160 ? 0 : 220
-                    base[i + 1] = UInt8(frame * 3)
-                    base[i + 2] = x < 160 ? 220 : 0
+                    let (blue, green, red) = pixel(x, frame)
+                    base[i] = blue
+                    base[i + 1] = green
+                    base[i + 2] = red
                     base[i + 3] = 255
                 }
             }
             CVPixelBufferUnlockBaseAddress(pixelBuffer, [])
-            try require(adaptor.append(pixelBuffer, withPresentationTime: CMTime(value: Int64(frame), timescale: 30)), "fixture append failed")
+            try require(adaptor.append(pixelBuffer, withPresentationTime: time), "fixture append failed")
         }
         input.markAsFinished()
-        writer.endSession(atSourceTime: CMTime(seconds: 2, preferredTimescale: 30))
+        writer.endSession(atSourceTime: end)
         let finished = DispatchSemaphore(value: 0)
         writer.finishWriting { finished.signal() }
         finished.wait()
         try require(writer.status == .completed, "fixture finalize failed")
+    }
+
+    /// Averages the cover to one pixel and returns its RGBA bytes.
+    static func coverPixel(_ result: GeneratedLivePhoto) throws -> [UInt8] {
+        let imageSource = CGImageSourceCreateWithURL(result.photoURL as CFURL, nil)!
+        return averagePixel(CGImageSourceCreateImageAtIndex(imageSource, 0, nil)!)
+    }
+
+    static func averagePixel(_ image: CGImage) -> [UInt8] {
+        let bytes = UnsafeMutablePointer<UInt8>.allocate(capacity: 4)
+        defer { bytes.deallocate() }
+        let context = CGContext(data: bytes, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        context.draw(image, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        return Array(UnsafeBufferPointer(start: bytes, count: 4))
+    }
+
+    /// Presentation times of every encoded frame, in display order.
+    static func frameTimes(of url: URL) async throws -> [CMTime] {
+        let movie = AVURLAsset(url: url)
+        let track = try await movie.loadTracks(withMediaType: .video)[0]
+        let reader = try AVAssetReader(asset: movie)
+        let output = AVAssetReaderTrackOutput(track: track, outputSettings: nil)
+        reader.add(output)
+        try require(reader.startReading(), "cannot read output video")
+        var times: [CMTime] = []
+        while let sample = output.copyNextSampleBuffer() {
+            if CMSampleBufferGetNumSamples(sample) > 0 { times.append(CMSampleBufferGetPresentationTimeStamp(sample)) }
+        }
+        try require(reader.status == .completed, "output video decoding failed")
+        return times.sorted { CMTimeCompare($0, $1) < 0 }
+    }
+
+    static func transferFunction(of url: URL) async throws -> String? {
+        let track = try await AVURLAsset(url: url).loadTracks(withMediaType: .video)[0]
+        let descriptions = try await track.load(.formatDescriptions)
+        return CMFormatDescriptionGetExtension(descriptions[0],
+            extensionKey: kCMFormatDescriptionExtension_TransferFunction) as? String
     }
 
     static func pairDirectories() throws -> Set<String> {
@@ -155,8 +214,13 @@ struct LivePhotoConverterTests {
 
         let exportURL = try result.export(to: temporary)
         try require(FileManager.default.fileExists(atPath: exportURL.appendingPathComponent("Wallpaper.mov").path), "pair export incomplete")
-        do { _ = try result.export(to: temporary); throw NSError(domain: "LivePhotoTests", code: 4) }
-        catch let error as NSError { try require(error.domain == NSCocoaErrorDomain, "export should refuse overwriting") }
+        // Exporting again to the same folder keeps the first pair and adds a suffix.
+        let secondExport = try result.export(to: temporary)
+        try require(secondExport != exportURL && secondExport.lastPathComponent == exportURL.lastPathComponent + "-2",
+                    "second export should use a new numbered folder: \(secondExport.lastPathComponent)")
+        try require(FileManager.default.fileExists(atPath: exportURL.appendingPathComponent("Wallpaper.jpg").path)
+                    && FileManager.default.fileExists(atPath: secondExport.appendingPathComponent("Wallpaper.mov").path),
+                    "repeated export overwrote or lost files")
 
         let rotatedURL = temporary.appendingPathComponent("portrait.mov")
         try fixture(at: rotatedURL, rotated: true)
@@ -166,6 +230,60 @@ struct LivePhotoConverterTests {
             format: .modernPhone, zoom: 1.2, horizontalPosition: 1, verticalPosition: -1)
         let rotatedResult = try await LivePhotoConverter.convert(request, metadataTemplateURL: URL(fileURLWithPath: CommandLine.arguments[1]))
         rotatedResult.removeTemporaryFiles()
+
+        // Variable frame rate: irregular source timing must still become a
+        // constant 60 fps timeline, and the cover must be the source frame on
+        // screen at the cover time (the one starting at 0.45 s for 0.5 s).
+        let vfrURL = temporary.appendingPathComponent("variable.mov")
+        let vfrTimes = [0, 0.04, 0.13, 0.2, 0.33, 0.45, 0.55, 0.71, 0.8]
+        // Neutral gray levels survive color conversion without hue shifts.
+        try fixture(at: vfrURL, times: vfrTimes.map { CMTime(seconds: $0, preferredTimescale: 600) },
+                    end: CMTime(seconds: 1, preferredTimescale: 600)) { _, frame in
+            let level = UInt8(20 + frame * 25)
+            return (level, level, level)
+        }
+        let vfr = try await LivePhotoConverter.inspect(vfrURL)
+        let vfrRequest = WallpaperConversionRequest(source: vfr, start: 0, duration: 1, coverTime: 0.5,
+            format: .classicPhone, zoom: 1, horizontalPosition: 0, verticalPosition: 0)
+        let vfrResult = try await LivePhotoConverter.convert(vfrRequest, metadataTemplateURL: URL(fileURLWithPath: CommandLine.arguments[1]))
+        defer { vfrResult.removeTemporaryFiles() }
+        let vfrFrames = try await frameTimes(of: vfrResult.videoURL)
+        try require(vfrFrames.count == 60, "variable frame rate source did not produce 60 frames: \(vfrFrames.count)")
+        for (index, time) in vfrFrames.enumerated() {
+            try require(CMTimeCompare(time, CMTime(value: Int64(index), timescale: 60)) == 0,
+                        "output frame \(index) is not on the 60 fps grid: \(time.seconds)")
+        }
+        // Decode each source frame as a reference instead of assuming exact
+        // levels after encoding; the cover must be nearest the 0.45 s frame.
+        let referenceGenerator = AVAssetImageGenerator(asset: AVURLAsset(url: vfrURL))
+        referenceGenerator.requestedTimeToleranceBefore = .zero
+        referenceGenerator.requestedTimeToleranceAfter = .zero
+        let references: [Int] = try vfrTimes.map { time in
+            let image = try referenceGenerator.copyCGImage(at: CMTime(seconds: time + 0.01, preferredTimescale: 600), actualTime: nil)
+            return Int(averagePixel(image)[1])
+        }
+        let vfrCover = try Int(coverPixel(vfrResult)[1])
+        let nearest = references.indices.min { abs(references[$0] - vfrCover) < abs(references[$1] - vfrCover) }!
+        try require(nearest == 5, "variable frame rate cover \(vfrCover) matches source frame \(nearest), not the 0.45 s frame; references \(references)")
+
+        // HDR: HLG input is normalized to SDR Rec.709 without clipping a
+        // mid-level signal to black or white.
+        let hdrURL = temporary.appendingPathComponent("hlg.mov")
+        try fixture(at: hdrURL, times: (0..<30).map { CMTime(value: Int64($0), timescale: 30) },
+                    end: CMTime(value: 30, timescale: 30), hlg: true) { _, _ in (128, 128, 128) }
+        let hdrInput = try await transferFunction(of: hdrURL)
+        try require(hdrInput == (kCMFormatDescriptionTransferFunction_ITU_R_2100_HLG as String),
+                    "HDR fixture is not tagged HLG: \(hdrInput ?? "none")")
+        let hdr = try await LivePhotoConverter.inspect(hdrURL)
+        let hdrRequest = WallpaperConversionRequest(source: hdr, start: 0, duration: 0.5, coverTime: 0.25,
+            format: .classicPhone, zoom: 1, horizontalPosition: 0, verticalPosition: 0)
+        let hdrResult = try await LivePhotoConverter.convert(hdrRequest, metadataTemplateURL: URL(fileURLWithPath: CommandLine.arguments[1]))
+        defer { hdrResult.removeTemporaryFiles() }
+        let hdrOutput = try await transferFunction(of: hdrResult.videoURL)
+        try require(hdrOutput == (kCMFormatDescriptionTransferFunction_ITU_R_709_2 as String),
+                    "HDR output is not SDR Rec.709: \(hdrOutput ?? "none")")
+        let hdrCover = try coverPixel(hdrResult)
+        try require(hdrCover[0...2].allSatisfy { (40...230).contains($0) }, "HDR cover is clipped: \(hdrCover)")
 
         let before = try pairDirectories()
         // Pause the encoder after its first frame, so cancellation is tested
@@ -189,6 +307,6 @@ struct LivePhotoConverterTests {
         } catch is CancellationError { }
         let after = try pairDirectories()
         try require(after == before, "cancelled conversion left temporary files")
-        print("ok: crop, clip timing, cover pixels, paired identifiers, wallpaper motion metadata, native cover transform, HEVC/60fps, Live Photo validation, rotation, export, cancellation")
+        print("ok: crop, clip timing, cover pixels, paired identifiers, wallpaper motion metadata, native cover transform, HEVC/60fps, Live Photo validation, rotation, variable frame rate, HDR to SDR, export, repeated export, cancellation")
     }
 }
