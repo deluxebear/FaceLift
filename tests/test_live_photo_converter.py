@@ -1,12 +1,16 @@
 """Exercise real AVFoundation encoding and PHLivePhoto validation without Photos writes."""
 
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
+@pytest.mark.skipif(sys.platform != "darwin", reason="AVFoundation and Photos require macOS")
 def test_live_photo_converter():
     sdk = subprocess.check_output(["xcrun", "--sdk", "macosx", "--show-sdk-path"], text=True).strip()
     with tempfile.TemporaryDirectory() as tmp:
