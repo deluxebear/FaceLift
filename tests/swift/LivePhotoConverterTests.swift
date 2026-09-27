@@ -74,7 +74,10 @@ struct LivePhotoConverterTests {
     /// Averages the cover to one pixel and returns its RGBA bytes.
     static func coverPixel(_ result: GeneratedLivePhoto) throws -> [UInt8] {
         let imageSource = CGImageSourceCreateWithURL(result.photoURL as CFURL, nil)!
-        let image = CGImageSourceCreateImageAtIndex(imageSource, 0, nil)!
+        return averagePixel(CGImageSourceCreateImageAtIndex(imageSource, 0, nil)!)
+    }
+
+    static func averagePixel(_ image: CGImage) -> [UInt8] {
         let bytes = UnsafeMutablePointer<UInt8>.allocate(capacity: 4)
         defer { bytes.deallocate() }
         let context = CGContext(data: bytes, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
@@ -233,9 +236,11 @@ struct LivePhotoConverterTests {
         // screen at the cover time (the one starting at 0.45 s for 0.5 s).
         let vfrURL = temporary.appendingPathComponent("variable.mov")
         let vfrTimes = [0, 0.04, 0.13, 0.2, 0.33, 0.45, 0.55, 0.71, 0.8]
+        // Neutral gray levels survive color conversion without hue shifts.
         try fixture(at: vfrURL, times: vfrTimes.map { CMTime(seconds: $0, preferredTimescale: 600) },
                     end: CMTime(seconds: 1, preferredTimescale: 600)) { _, frame in
-            (0, UInt8(20 + frame * 25), 0)
+            let level = UInt8(20 + frame * 25)
+            return (level, level, level)
         }
         let vfr = try await LivePhotoConverter.inspect(vfrURL)
         let vfrRequest = WallpaperConversionRequest(source: vfr, start: 0, duration: 1, coverTime: 0.5,
@@ -248,8 +253,18 @@ struct LivePhotoConverterTests {
             try require(CMTimeCompare(time, CMTime(value: Int64(index), timescale: 60)) == 0,
                         "output frame \(index) is not on the 60 fps grid: \(time.seconds)")
         }
-        let vfrCover = try coverPixel(vfrResult)
-        try require(abs(Int(vfrCover[1]) - 145) < 12, "variable frame rate cover is not the 0.45 s frame: \(vfrCover)")
+        // Decode each source frame as a reference instead of assuming exact
+        // levels after encoding; the cover must be nearest the 0.45 s frame.
+        let referenceGenerator = AVAssetImageGenerator(asset: AVURLAsset(url: vfrURL))
+        referenceGenerator.requestedTimeToleranceBefore = .zero
+        referenceGenerator.requestedTimeToleranceAfter = .zero
+        let references: [Int] = try vfrTimes.map { time in
+            let image = try referenceGenerator.copyCGImage(at: CMTime(seconds: time + 0.01, preferredTimescale: 600), actualTime: nil)
+            return Int(averagePixel(image)[1])
+        }
+        let vfrCover = try Int(coverPixel(vfrResult)[1])
+        let nearest = references.indices.min { abs(references[$0] - vfrCover) < abs(references[$1] - vfrCover) }!
+        try require(nearest == 5, "variable frame rate cover \(vfrCover) matches source frame \(nearest), not the 0.45 s frame; references \(references)")
 
         // HDR: HLG input is normalized to SDR Rec.709 without clipping a
         // mid-level signal to black or white.
