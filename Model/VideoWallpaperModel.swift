@@ -28,6 +28,7 @@ final class VideoWallpaperModel: ObservableObject {
             draftChanged()
         }
     }
+    @Published private(set) var resolution: WallpaperResolution = .fullHD
     @Published var zoom = 1.0 {
         didSet { if isBusy { zoom = oldValue } else { draftChanged() } }
     }
@@ -67,6 +68,7 @@ final class VideoWallpaperModel: ObservableObject {
     var maximumClipDuration: Double { min(3, source?.duration ?? 3) }
     var maximumClipStart: Double { max(0, (source?.duration ?? 0) - clipDuration) }
     var maximumCoverTime: Double { max(0, clipDuration - 1.0 / Double(WallpaperConversionRequest.frameRate)) }
+    var outputSize: CGSize { resolution.size(for: format) }
 
     var status: String {
         switch operation {
@@ -87,7 +89,7 @@ final class VideoWallpaperModel: ObservableObject {
     private var request: WallpaperConversionRequest? {
         guard let source else { return nil }
         return WallpaperConversionRequest(source: source, start: clipStart, duration: clipDuration,
-            coverTime: coverTime, format: format, zoom: zoom,
+            coverTime: coverTime, format: format, resolution: resolution, zoom: zoom,
             horizontalPosition: horizontalPosition, verticalPosition: verticalPosition)
     }
 
@@ -126,6 +128,12 @@ final class VideoWallpaperModel: ObservableObject {
     func setClipStart(_ value: Double) {
         guard !isBusy else { return }
         clipStart = min(maximumClipStart, max(0, value))
+        draftChanged()
+    }
+
+    func setResolution(_ value: WallpaperResolution) {
+        guard !isBusy, resolution != value else { return }
+        resolution = value
         draftChanged()
     }
 
@@ -173,7 +181,8 @@ final class VideoWallpaperModel: ObservableObject {
         previewTask = Task {
             do {
                 try await Task.sleep(nanoseconds: 120_000_000)
-                let size = request.format.size.applying(CGAffineTransform(scaleX: 0.5, y: 0.5))
+                // Preview cost stays constant even when a large output is chosen.
+                let size = CGSize(width: 540, height: Int((540 * request.format.heightToWidth / 2).rounded()) * 2)
                 let (asset, composition) = try await LivePhotoConverter.composition(for: request, renderSize: size)
                 try Task.checkCancellation()
                 let item = AVPlayerItem(asset: asset)

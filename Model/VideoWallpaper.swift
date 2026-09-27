@@ -5,11 +5,34 @@ import AVFoundation
 enum WallpaperFormat: String, CaseIterable, Identifiable {
     case modernPhone, classicPhone
     var id: String { rawValue }
-    var size: CGSize {
+    var heightToWidth: Double {
         switch self {
-        case .modernPhone: return CGSize(width: 1080, height: 2340)
-        case .classicPhone: return CGSize(width: 1080, height: 1920)
+        case .modernPhone: return 19.5 / 9
+        case .classicPhone: return 16.0 / 9
         }
+    }
+}
+
+/// Ordered from highest to lowest. These are output choices, not promises
+/// that a particular iPhone/iOS version will accept the resulting wallpaper.
+enum WallpaperResolution: Int, CaseIterable, Identifiable {
+    case ultra = 2160
+    case high = 1440
+    case fullHD = 1080
+    case width984 = 984
+    case width960 = 960
+    case width876 = 876
+    case width864 = 864
+    case hd = 720
+    case compact = 540
+
+    var id: Int { rawValue }
+
+    func size(for format: WallpaperFormat) -> CGSize {
+        // HEVC 4:2:0 needs even dimensions. Round the height to the nearest
+        // even pixel while preserving the selected screen shape.
+        let height = Int((Double(rawValue) * format.heightToWidth / 2).rounded()) * 2
+        return CGSize(width: rawValue, height: height)
     }
 }
 
@@ -31,6 +54,7 @@ struct WallpaperConversionRequest {
     /// Time within the selected clip, not the source movie.
     var coverTime: Double
     var format: WallpaperFormat
+    var resolution: WallpaperResolution = .fullHD
     var zoom: Double
     /// -1 places the left/top edge at the crop edge; +1 places the right/bottom edge there.
     var horizontalPosition: Double
@@ -39,6 +63,8 @@ struct WallpaperConversionRequest {
     static let frameRate: Int32 = 60
     static let minimumDuration = 0.5
     static let maximumDuration = 3.0
+
+    var outputSize: CGSize { resolution.size(for: format) }
 
     var timeRange: CMTimeRange {
         CMTimeRange(start: CMTime(seconds: start, preferredTimescale: 600),

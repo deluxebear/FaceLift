@@ -144,7 +144,7 @@ extension ContentView {
     }
 
     private var wallpaperPhonePreview: some View {
-        let aspect = wallpaper.format.size.height / wallpaper.format.size.width
+        let aspect = wallpaper.format.heightToWidth
         let profile = PhonePreviewProfile.forDevice(vm.device)
         return WallpaperPlayerView(player: wallpaper.player)
             .frame(width: 220, height: 220 * aspect)
@@ -195,7 +195,7 @@ extension ContentView {
     }
 
     private var wallpaperShapeMismatch: Bool {
-        let aspect = wallpaper.format.size.height / wallpaper.format.size.width
+        let aspect = wallpaper.format.heightToWidth
         let screen = PhonePreviewProfile.forDevice(vm.device).aspectRatio
         return screen > aspect * 1.05 || aspect > screen * 1.05
     }
@@ -249,12 +249,22 @@ extension ContentView {
                         Text(L("Modern iPhone (19.5:9)")).tag(WallpaperFormat.modernPhone)
                         Text(L("Classic iPhone (16:9)")).tag(WallpaperFormat.classicPhone)
                     }
+                    Picker(L("Output Resolution"), selection: Binding(
+                        get: { wallpaper.resolution }, set: { wallpaper.setResolution($0) }
+                    )) {
+                        ForEach(WallpaperResolution.allCases) { resolution in
+                            let size = resolution.size(for: wallpaper.format)
+                            Text("\(Int(size.width)) × \(Int(size.height))").tag(resolution)
+                        }
+                    }
+                    Text(L("Resolutions are listed from highest to lowest. If motion is unavailable on your iPhone, choose a lower resolution, create a new Live Photo, and sync it again."))
+                        .font(.caption).foregroundStyle(.secondary)
                     wallpaperSlider(L("Zoom"), value: $wallpaper.zoom, minimum: 1, maximum: 3,
                                     label: String(format: "%.2f×", wallpaper.zoom))
                     wallpaperSlider(L("Horizontal Position"), value: $wallpaper.horizontalPosition, minimum: -1, maximum: 1)
                     wallpaperSlider(L("Vertical Position"), value: $wallpaper.verticalPosition, minimum: -1, maximum: 1)
                     Button(L("Reset Framing")) { wallpaper.resetFraming() }
-                    Text(L("Output: %@ · HEVC · 60 fps", "\(Int(wallpaper.format.size.width)) × \(Int(wallpaper.format.size.height))"))
+                    Text(L("Output: %@ · HEVC · 60 fps", "\(Int(wallpaper.outputSize.width)) × \(Int(wallpaper.outputSize.height))"))
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 .disabled(wallpaper.isBusy)

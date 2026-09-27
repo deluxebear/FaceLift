@@ -3,7 +3,9 @@ import AVFoundation
 import ImageIO
 import VideoToolbox
 
+#if !WALLPAPER_DIMENSION_TESTS
 @main
+#endif
 struct LivePhotoConverterTests {
     static func require(_ condition: @autoclosure () -> Bool, _ message: String) throws {
         if !condition() { throw NSError(domain: "LivePhotoTests", code: 1, userInfo: [NSLocalizedDescriptionKey: message]) }
@@ -45,7 +47,12 @@ struct LivePhotoConverterTests {
         for (frame, time) in times.enumerated() {
             while !input.isReadyForMoreMediaData { Thread.sleep(forTimeInterval: 0.002) }
             var buffer: CVPixelBuffer?
-            CVPixelBufferPoolCreatePixelBuffer(nil, adaptor.pixelBufferPool!, &buffer)
+            guard let pool = adaptor.pixelBufferPool else {
+                throw NSError(domain: "LivePhotoTests", code: 1, userInfo: [NSLocalizedDescriptionKey:
+                    "fixture pixel pool unavailable (HLG=\(hlg)): \(writer.error?.localizedDescription ?? "unknown")"])
+            }
+            let status = CVPixelBufferPoolCreatePixelBuffer(nil, pool, &buffer)
+            try require(status == kCVReturnSuccess && buffer != nil, "fixture pixel allocation failed: \(status)")
             let pixelBuffer = buffer!
             CVPixelBufferLockBaseAddress(pixelBuffer, [])
             let base = CVPixelBufferGetBaseAddress(pixelBuffer)!.assumingMemoryBound(to: UInt8.self)
@@ -61,7 +68,8 @@ struct LivePhotoConverterTests {
                 }
             }
             CVPixelBufferUnlockBaseAddress(pixelBuffer, [])
-            try require(adaptor.append(pixelBuffer, withPresentationTime: time), "fixture append failed")
+            try require(adaptor.append(pixelBuffer, withPresentationTime: time),
+                        "fixture append failed (HLG=\(hlg)): \(writer.error?.localizedDescription ?? "unknown")")
         }
         input.markAsFinished()
         writer.endSession(atSourceTime: end)
@@ -124,7 +132,7 @@ struct LivePhotoConverterTests {
         try require(abs(source.duration - 2) < 0.01, "source duration incorrect")
         var request = WallpaperConversionRequest(source: source, start: 0.5, duration: 1,
             coverTime: 0.4, format: .classicPhone, zoom: 1, horizontalPosition: -1, verticalPosition: 0)
-        let bounds = CGRect(origin: .zero, size: source.naturalSize).applying(request.cropTransform(renderSize: request.format.size))
+        let bounds = CGRect(origin: .zero, size: source.naturalSize).applying(request.cropTransform(renderSize: request.outputSize))
         try require(abs(bounds.minX) < 0.01 && abs(bounds.height - 1920) < 0.01, "left-aligned fill crop incorrect")
         var invalid = request
         invalid.start = 1.5
@@ -144,7 +152,7 @@ struct LivePhotoConverterTests {
                     "movie content identifier missing")
         let video = try await movie.loadTracks(withMediaType: .video)
         let videoSize = try await video[0].load(.naturalSize)
-        try require(videoSize == request.format.size, "output dimensions incorrect")
+        try require(videoSize == request.outputSize, "output dimensions incorrect")
         let audio = try await movie.loadTracks(withMediaType: .audio)
         try require(audio.isEmpty, "wallpaper should be silent")
         let imageSource = CGImageSourceCreateWithURL(result.photoURL as CFURL, nil)!
@@ -213,13 +221,13 @@ struct LivePhotoConverterTests {
         try require(abs(frameRate - 60) < 0.1, "wallpaper video must have 60 fps")
 
         let exportURL = try result.export(to: temporary)
-        try require(FileManager.default.fileExists(atPath: exportURL.appendingPathComponent("Wallpaper.mov").path), "pair export incomplete")
+        try require(FileManager.default.fileExists(atPath: exportURL.appendingPathComponent(result.videoURL.lastPathComponent).path), "pair export incomplete")
         // Exporting again to the same folder keeps the first pair and adds a suffix.
         let secondExport = try result.export(to: temporary)
         try require(secondExport != exportURL && secondExport.lastPathComponent == exportURL.lastPathComponent + "-2",
                     "second export should use a new numbered folder: \(secondExport.lastPathComponent)")
-        try require(FileManager.default.fileExists(atPath: exportURL.appendingPathComponent("Wallpaper.jpg").path)
-                    && FileManager.default.fileExists(atPath: secondExport.appendingPathComponent("Wallpaper.mov").path),
+        try require(FileManager.default.fileExists(atPath: exportURL.appendingPathComponent(result.photoURL.lastPathComponent).path)
+                    && FileManager.default.fileExists(atPath: secondExport.appendingPathComponent(result.videoURL.lastPathComponent).path),
                     "repeated export overwrote or lost files")
 
         let rotatedURL = temporary.appendingPathComponent("portrait.mov")
@@ -227,8 +235,14 @@ struct LivePhotoConverterTests {
         let rotated = try await LivePhotoConverter.inspect(rotatedURL)
         try require(rotated.displaySize == CGSize(width: 180, height: 320), "portrait orientation lost")
         request = WallpaperConversionRequest(source: rotated, start: 0, duration: 0.5, coverTime: 0.2,
-            format: .modernPhone, zoom: 1.2, horizontalPosition: 1, verticalPosition: -1)
+            format: .modernPhone, resolution: .hd, zoom: 1.2, horizontalPosition: 1, verticalPosition: -1)
         let rotatedResult = try await LivePhotoConverter.convert(request, metadataTemplateURL: URL(fileURLWithPath: CommandLine.arguments[1]))
+        let modernTrack = try await AVURLAsset(url: rotatedResult.videoURL).loadTracks(withMediaType: .video)[0]
+        let modernSize = try await modernTrack.load(.naturalSize)
+        try require(modernSize == CGSize(width: 720, height: 1560), "modern wallpaper exceeds verified animation dimensions")
+        let modernCover = CGImageSourceCreateWithURL(rotatedResult.photoURL as CFURL, nil)!
+        let modernImage = CGImageSourceCreateImageAtIndex(modernCover, 0, nil)!
+        try require(modernImage.width == 720 && modernImage.height == 1560, "modern cover must match paired movie dimensions")
         rotatedResult.removeTemporaryFiles()
 
         // Variable frame rate: irregular source timing must still become a

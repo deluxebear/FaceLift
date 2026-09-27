@@ -494,6 +494,8 @@
 "Select 0.5–3 seconds. The cover frame is measured from the clip start. The exported Live Photo is silent." = "选取 0.5 至 3 秒的片段。封面帧时间从片段起点计算，导出的实况照片不含声音。";
 "Portrait Framing" = "竖屏取景";
 "Screen Shape" = "屏幕比例";
+"Output Resolution" = "输出分辨率";
+"Resolutions are listed from highest to lowest. If motion is unavailable on your iPhone, choose a lower resolution, create a new Live Photo, and sync it again." = "分辨率从高到低排列。如果 iPhone 提示动态效果不可用，请降低一档，重新生成实况照片并同步到手机。";
 "Modern iPhone (19.5:9)" = "全面屏 iPhone（19.5:9）";
 "Classic iPhone (16:9)" = "传统屏幕 iPhone（16:9）";
 "Horizontal Position" = "水平位置";

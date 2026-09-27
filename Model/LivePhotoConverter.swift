@@ -107,7 +107,7 @@ enum LivePhotoConverter {
             throw WallpaperConversionError.invalidVideo
         }
         try track.insertTimeRange(request.timeRange, of: sourceTrack, at: .zero)
-        let size = renderSize ?? request.format.size
+        let size = renderSize ?? request.outputSize
         let layer = AVMutableVideoCompositionLayerInstruction(assetTrack: track)
         layer.setTransform(request.cropTransform(renderSize: size), at: .zero)
         let instruction = AVMutableVideoCompositionInstruction()
@@ -167,9 +167,10 @@ enum LivePhotoConverter {
         let identifier = UUID().uuidString
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("FaceLift-LivePhoto-\(identifier)", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: false)
+        let fileName = "Wallpaper-\(Int(request.outputSize.width))x\(Int(request.outputSize.height))"
         let result = GeneratedLivePhoto(directory: directory,
-                                        photoURL: directory.appendingPathComponent("Wallpaper.jpg"),
-                                        videoURL: directory.appendingPathComponent("Wallpaper.mov"), identifier: identifier)
+                                        photoURL: directory.appendingPathComponent(fileName + ".jpg"),
+                                        videoURL: directory.appendingPathComponent(fileName + ".mov"), identifier: identifier)
         var completed = false
         // Set when a stalled finishWriting keeps the files; its handler cleans up.
         var ownedByWriter = false
@@ -192,12 +193,12 @@ enum LivePhotoConverter {
         writer.metadata = [contentID]
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
             AVVideoCodecKey: AVVideoCodecType.hevc,
-            AVVideoWidthKey: Int(request.format.size.width),
-            AVVideoHeightKey: Int(request.format.size.height),
+            AVVideoWidthKey: Int(request.outputSize.width),
+            AVVideoHeightKey: Int(request.outputSize.height),
             AVVideoColorPropertiesKey: [AVVideoColorPrimariesKey: AVVideoColorPrimaries_ITU_R_709_2,
                                        AVVideoTransferFunctionKey: AVVideoTransferFunction_ITU_R_709_2,
                                        AVVideoYCbCrMatrixKey: AVVideoYCbCrMatrix_ITU_R_709_2],
-            AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: 8_000_000,
+            AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: max(8_000_000, Int(request.outputSize.width * request.outputSize.height * 3)),
                                               AVVideoExpectedSourceFrameRateKey: Int(WallpaperConversionRequest.frameRate),
                                               AVVideoMaxKeyFrameIntervalKey: Int(WallpaperConversionRequest.frameRate)]
         ])
