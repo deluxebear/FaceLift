@@ -17,6 +17,67 @@ private final class WallpaperCancellation: @unchecked Sendable {
     }
 }
 
+/// `finishWriting` cannot be cancelled. If the worker stops waiting, the
+/// writer's completion handler takes over removing the temporary files.
+private final class WriterFinishState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var done = false
+    private var abandoned = false
+    /// Returns true when the worker already gave up waiting.
+    func markDone() -> Bool { lock.lock(); defer { lock.unlock() }; done = true; return abandoned }
+    /// Returns false when the writer finished before the worker gave up.
+    func abandon() -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        if done { return false }
+        abandoned = true
+        return true
+    }
+}
+
+/// `PHLivePhoto.request` may call its handler more than once, or never with a
+/// final result. Resume exactly once, on the result, a timeout or cancellation.
+private final class LivePhotoValidation: @unchecked Sendable {
+    private let lock = NSLock()
+    private var continuation: CheckedContinuation<Void, Error>?
+    private var requestID: PHLivePhotoRequestID?
+    private var finished = false
+
+    func start(_ continuation: CheckedContinuation<Void, Error>) {
+        lock.lock()
+        if finished {
+            lock.unlock()
+            continuation.resume(throwing: CancellationError())
+            return
+        }
+        self.continuation = continuation
+        lock.unlock()
+    }
+
+    func setRequestID(_ id: PHLivePhotoRequestID) {
+        lock.lock()
+        let alreadyFinished = finished
+        if !alreadyFinished { requestID = id }
+        lock.unlock()
+        if alreadyFinished { Self.cancelRequest(id) }
+    }
+
+    func finish(_ result: Result<Void, Error>) {
+        lock.lock()
+        guard !finished else { lock.unlock(); return }
+        finished = true
+        let continuation = self.continuation
+        self.continuation = nil
+        let id = requestID
+        lock.unlock()
+        continuation?.resume(with: result)
+        if case .failure = result, let id { Self.cancelRequest(id) }
+    }
+
+    private static func cancelRequest(_ id: PHLivePhotoRequestID) {
+        DispatchQueue.main.async { PHLivePhoto.cancelRequest(withRequestID: id) }
+    }
+}
+
 enum LivePhotoConverter {
     static func inspect(_ url: URL) async throws -> WallpaperVideoSource {
         let asset = AVURLAsset(url: url)
@@ -110,7 +171,9 @@ enum LivePhotoConverter {
                                         photoURL: directory.appendingPathComponent("Wallpaper.jpg"),
                                         videoURL: directory.appendingPathComponent("Wallpaper.mov"), identifier: identifier)
         var completed = false
-        defer { if !completed { result.removeTemporaryFiles() } }
+        // Set when a stalled finishWriting keeps the files; its handler cleans up.
+        var ownedByWriter = false
+        defer { if !completed && !ownedByWriter { result.removeTemporaryFiles() } }
         try cancellation.check()
 
         let reader = try AVAssetReader(asset: asset)
@@ -199,7 +262,11 @@ enum LivePhotoConverter {
         }
         writer.startSession(atSourceTime: .zero)
         defer {
-            if !completed { reader.cancelReading(); writer.cancelWriting() }
+            if !completed {
+                reader.cancelReading()
+                // cancelWriting must not race an unfinished finishWriting.
+                if !ownedByWriter { writer.cancelWriting() }
+            }
         }
         let marker = AVMutableMetadataItem()
         marker.keySpace = .quickTimeMetadata
@@ -273,9 +340,16 @@ enum LivePhotoConverter {
         motionInput.markAsFinished()
         writer.endSession(atSourceTime: request.timeRange.duration)
         let finished = DispatchSemaphore(value: 0)
-        writer.finishWriting { finished.signal() }
-        // The worker owns the files until finishWriting returns, including cancellation.
-        guard finished.wait(timeout: .now() + 60) == .success else {
+        let finishState = WriterFinishState()
+        writer.finishWriting {
+            if finishState.markDone() { result.removeTemporaryFiles() }
+            finished.signal()
+        }
+        // The worker owns the files until finishWriting returns. On a timeout,
+        // hand them to the completion handler instead of deleting them under a
+        // writer that is still finalizing.
+        if finished.wait(timeout: .now() + 60) != .success, finishState.abandon() {
+            ownedByWriter = true
             throw WallpaperConversionError.encoding("Encoder timed out")
         }
         try cancellation.check()
@@ -315,18 +389,30 @@ enum LivePhotoConverter {
         }
     }
 
-    static func validate(_ result: GeneratedLivePhoto) async throws {
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-            PHLivePhoto.request(withResourceFileURLs: [result.photoURL, result.videoURL], placeholderImage: nil,
-                                targetSize: CGSize(width: 270, height: 585), contentMode: .aspectFit) { photo, info in
-                if (info[PHLivePhotoInfoIsDegradedKey] as? Bool) == true { return }
-                if photo != nil {
-                    continuation.resume()
-                } else {
-                    let message = (info[PHLivePhotoInfoErrorKey] as? Error)?.localizedDescription ?? "Invalid photo/video pair"
-                    continuation.resume(throwing: WallpaperConversionError.invalidLivePhoto(message))
+    static func validate(_ result: GeneratedLivePhoto, timeout: TimeInterval = 30) async throws {
+        let validation = LivePhotoValidation()
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+                validation.start(continuation)
+                let id = PHLivePhoto.request(withResourceFileURLs: [result.photoURL, result.videoURL], placeholderImage: nil,
+                                             targetSize: CGSize(width: 270, height: 585), contentMode: .aspectFit) { photo, info in
+                    if (info[PHLivePhotoInfoIsDegradedKey] as? Bool) == true { return }
+                    if (info[PHLivePhotoInfoCancelledKey] as? Bool) == true {
+                        validation.finish(.failure(CancellationError()))
+                    } else if photo != nil {
+                        validation.finish(.success(()))
+                    } else {
+                        let message = (info[PHLivePhotoInfoErrorKey] as? Error)?.localizedDescription ?? "Invalid photo/video pair"
+                        validation.finish(.failure(WallpaperConversionError.invalidLivePhoto(message)))
+                    }
+                }
+                validation.setRequestID(id)
+                DispatchQueue.global().asyncAfter(deadline: .now() + timeout) {
+                    validation.finish(.failure(WallpaperConversionError.invalidLivePhoto("Validation timed out")))
                 }
             }
+        } onCancel: {
+            validation.finish(.failure(CancellationError()))
         }
     }
 

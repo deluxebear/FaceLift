@@ -135,7 +135,12 @@ if [ "$SIGN_IDENTITY" != "-" ]; then
         codesign --force --options runtime --timestamp \
             --sign "$SIGN_IDENTITY" "$helper"
     done
+    # --deep re-signs the helpers too, so pass entitlements only on a
+    # separate, non-deep signature of the app itself.
     codesign --force --deep --options runtime --timestamp \
+        --sign "$SIGN_IDENTITY" "$APP_DIR"
+    codesign --force --options runtime --timestamp \
+        --entitlements Resources/FaceLift.entitlements \
         --sign "$SIGN_IDENTITY" "$APP_DIR"
     codesign --verify --deep --strict --verbose=2 "$APP_DIR"
     if [ "$NOTARIZE" = "1" ]; then

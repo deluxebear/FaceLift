@@ -19,10 +19,20 @@ final class VideoWallpaperModel: ObservableObject {
     @Published private(set) var clipStart = 0.0
     @Published private(set) var clipDuration = 1.0
     @Published private(set) var coverTime = 0.5
-    @Published var format: WallpaperFormat = .classicPhone { didSet { draftChanged() } }
-    @Published var zoom = 1.0 { didSet { draftChanged() } }
-    @Published var horizontalPosition = 0.0 { didSet { draftChanged() } }
-    @Published var verticalPosition = 0.0 { didSet { draftChanged() } }
+    // Framing edits delete the generated files, so reject them while an
+    // operation (such as saving to Photos) may still be reading those files.
+    @Published var format: WallpaperFormat = .classicPhone {
+        didSet { if isBusy { format = oldValue } else { draftChanged() } }
+    }
+    @Published var zoom = 1.0 {
+        didSet { if isBusy { zoom = oldValue } else { draftChanged() } }
+    }
+    @Published var horizontalPosition = 0.0 {
+        didSet { if isBusy { horizontalPosition = oldValue } else { draftChanged() } }
+    }
+    @Published var verticalPosition = 0.0 {
+        didSet { if isBusy { verticalPosition = oldValue } else { draftChanged() } }
+    }
     @Published private(set) var player: AVPlayer?
     @Published private(set) var isPlaying = false
     @Published private(set) var previewReady = false
