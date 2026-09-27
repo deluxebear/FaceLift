@@ -26,6 +26,12 @@ private struct WallpaperPlayerView: NSViewRepresentable {
     static func dismantleNSView(_ view: PlayerSurface, coordinator: ()) { view.playerLayer.player = nil }
 }
 
+/// Actions that would discard a Live Photo that was neither saved nor exported.
+enum WallpaperDiscardAction: Equatable {
+    case load(URL)
+    case clear
+}
+
 extension ContentView {
     var videoWallpaperWorkspace: some View {
         ScrollView {
@@ -52,6 +58,13 @@ extension ContentView {
                         Text(L("Preview only · Clock and controls are not exported"))
                             .font(.caption)
                             .foregroundStyle(.secondary)
+                    }
+                    if wallpaperShapeMismatch {
+                        Text(L("Shaded areas fall outside this iPhone's screen. Change Screen Shape to use the full frame."))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: 420)
                     }
                     if let source = wallpaper.source {
                         Text(source.url.lastPathComponent)
@@ -81,11 +94,53 @@ extension ContentView {
             guard !wallpaper.isBusy, let provider = providers.first else { return false }
             _ = provider.loadObject(ofClass: URL.self) { url, _ in
                 guard let url, url.isFileURL else { return }
-                Task { @MainActor in wallpaper.load(url) }
+                Task { @MainActor in requestWallpaperLoad(url) }
             }
             return true
         }
         .onDisappear { wallpaper.pause() }
+        .confirmationDialog(L("Discard the unsaved Live Photo?"), isPresented: Binding(
+            get: { pendingWallpaperDiscard != nil },
+            set: { if !$0 { pendingWallpaperDiscard = nil } }
+        ), presenting: pendingWallpaperDiscard) { action in
+            Button(L("Discard"), role: .destructive) { performWallpaperDiscard(action) }
+            Button(L("Cancel"), role: .cancel) {}
+        } message: { _ in
+            Text(L("The Live Photo you created has not been saved to Photos or exported. Continuing deletes it."))
+        }
+    }
+
+    /// Asks first when loading would delete a result the user has not kept.
+    func requestWallpaperLoad(_ url: URL) {
+        guard !wallpaper.isBusy else { return }
+        if wallpaper.hasUnsavedResult {
+            pendingWallpaperDiscard = .load(url)
+        } else {
+            performWallpaperDiscard(.load(url))
+        }
+    }
+
+    func requestWallpaperClear() {
+        guard !wallpaper.isBusy, wallpaper.source != nil else { return }
+        if wallpaper.hasUnsavedResult {
+            pendingWallpaperDiscard = .clear
+        } else {
+            performWallpaperDiscard(.clear)
+        }
+    }
+
+    private func performWallpaperDiscard(_ action: WallpaperDiscardAction) {
+        pendingWallpaperDiscard = nil
+        switch action {
+        case .load(let url): wallpaper.load(url, suggestedFormat: suggestedWallpaperFormat)
+        case .clear: wallpaper.clear()
+        }
+    }
+
+    /// Home-button iPhones use 16:9 screens; every other iPhone is about 19.5:9.
+    private var suggestedWallpaperFormat: WallpaperFormat? {
+        guard vm.device != nil else { return nil }
+        return PhonePreviewProfile.forDevice(vm.device).front == .homeButton ? .classicPhone : .modernPhone
     }
 
     private var wallpaperPhonePreview: some View {
@@ -104,10 +159,45 @@ extension ContentView {
                 .allowsHitTesting(false)
             }
             .overlay {
+                wallpaperCropGuides(formatAspect: aspect, screenAspect: profile.aspectRatio)
+                    .allowsHitTesting(false)
+            }
+            .overlay {
                 if !wallpaper.previewReady { ProgressView().tint(.white) }
             }
             .modifier(PhoneFrameChrome(profile: profile))
             .accessibilityLabel(L("Lock Screen Preview"))
+    }
+
+    /// iOS scales a wallpaper to fill the screen. When the output shape differs
+    /// from the previewed iPhone, shade the parts that screen crops away. The
+    /// 5% tolerance absorbs the mockup's approximate screen ratios.
+    @ViewBuilder
+    private func wallpaperCropGuides(formatAspect: CGFloat, screenAspect: CGFloat) -> some View {
+        let shade = Color.black.opacity(0.55)
+        if screenAspect > formatAspect * 1.05 {
+            // Taller screen: the sides are cropped.
+            let band = 220 * (1 - formatAspect / screenAspect) / 2
+            HStack(spacing: 0) {
+                shade.frame(width: band)
+                Spacer(minLength: 0)
+                shade.frame(width: band)
+            }
+        } else if formatAspect > screenAspect * 1.05 {
+            // Shorter screen: the top and bottom are cropped.
+            let band = 220 * formatAspect * (1 - screenAspect / formatAspect) / 2
+            VStack(spacing: 0) {
+                shade.frame(height: band)
+                Spacer(minLength: 0)
+                shade.frame(height: band)
+            }
+        }
+    }
+
+    private var wallpaperShapeMismatch: Bool {
+        let aspect = wallpaper.format.size.height / wallpaper.format.size.width
+        let screen = PhonePreviewProfile.forDevice(vm.device).aspectRatio
+        return screen > aspect * 1.05 || aspect > screen * 1.05
     }
 
     private var wallpaperResultNotice: some View {
@@ -210,7 +300,7 @@ extension ContentView {
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         panel.message = L("Choose a video for your Live Photo wallpaper.")
-        if panel.runModal() == .OK, let url = panel.url { wallpaper.load(url) }
+        if panel.runModal() == .OK, let url = panel.url { requestWallpaperLoad(url) }
     }
 
     func openLivePhotoExportPanel() {

@@ -15,6 +15,7 @@ struct ContentView: View {
     @State var dragKeyStartOffsets: [String: CGPoint] = [:]
     @State var isCanvasTargeted = false
     @State var isWallpaperTargeted = false
+    @State var pendingWallpaperDiscard: WallpaperDiscardAction?
 
     // Forwarders so workspace code keeps reading and writing window state
     // by its original names.
@@ -217,7 +218,7 @@ struct ContentView: View {
         case .exportLivePhoto:
             openLivePhotoExportPanel()
         case .clearVideo:
-            wallpaper.clear()
+            requestWallpaperClear()
         case .cancelVideo:
             wallpaper.cancel()
         case .importTheme:
