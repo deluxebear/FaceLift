@@ -1,12 +1,12 @@
 # FaceLift 🎴
 
 > **Apple Wallet Card Skinner & Lockscreen Passcode Themer for iOS 18+ (No Jailbreak Required)**  
-> **v1.1.0** — Powered by the `airlift` AirTraffic sync exploit.
+> **v1.2.0** — Powered by the `airlift` AirTraffic sync exploit.
 
 **Language:** English | [简体中文](README.zh-CN.md)
 
 > [!IMPORTANT]
-> **Tested configuration:** So far v1.1.0 has only had real-device testing on **macOS 27** (host) driving an **iPhone 16 Pro on iOS 27.0**. Other macOS or iOS versions should work but are not yet verified — feedback welcome.
+> **Tested configuration:** So far v1.2.0 has only had real-device testing on **macOS 27** (host) driving an **iPhone 16 Pro on iOS 27.0**. Other macOS or iOS versions should work but are not yet verified — feedback welcome.
 
 ---
 
@@ -17,6 +17,10 @@
 | ![Wallet Cards](docs/screenshots/cards.png) | ![Passcode Themes](docs/screenshots/passcode-theme.png) | ![Theme Creator](docs/screenshots/theme-creator.png) |
 
 ---
+
+## What's New in v1.2.0
+- 🎞️ **Video to Live Photo:** Convert a short video clip into a paired Live Photo, preview its crop and cover, then save it to Mac Photos or export the original pair.
+- 📐 **Resolution choices:** Select screen shape and output resolution separately. Nine presets are listed from high to low so you can retry at a smaller size if iPhone reports that motion is unavailable. Wallpaper animation must still be checked on the iPhone.
 
 ## What's New in v1.1.0
 - 📱 **Per-iPhone Card Lists:** Every iPhone now keeps its own cards, skins and history under `~/Library/Application Support/FaceLift/Devices/<udid>/`. FaceLift refuses to write a card to an iPhone whose list does not include it.

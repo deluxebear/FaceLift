@@ -39,7 +39,8 @@ struct LivePhotoConverterTests {
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
         if rotated { input.transform = CGAffineTransform(a: 0, b: 1, c: -1, d: 0, tx: 180, ty: 0) }
         let adaptor = AVAssetWriterInputPixelBufferAdaptor(assetWriterInput: input,
-            sourcePixelBufferAttributes: [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+            sourcePixelBufferAttributes: [kCVPixelBufferPixelFormatTypeKey as String:
+                                             hlg ? kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange : kCVPixelFormatType_32BGRA,
                                          kCVPixelBufferWidthKey as String: 320, kCVPixelBufferHeightKey as String: 180])
         writer.add(input)
         try require(writer.startWriting(), "fixture writer failed")
@@ -55,16 +56,32 @@ struct LivePhotoConverterTests {
             try require(status == kCVReturnSuccess && buffer != nil, "fixture pixel allocation failed: \(status)")
             let pixelBuffer = buffer!
             CVPixelBufferLockBaseAddress(pixelBuffer, [])
-            let base = CVPixelBufferGetBaseAddress(pixelBuffer)!.assumingMemoryBound(to: UInt8.self)
-            let stride = CVPixelBufferGetBytesPerRow(pixelBuffer)
-            for y in 0..<180 {
-                for x in 0..<320 {
-                    let i = y * stride + x * 4
-                    let (blue, green, red) = pixel(x, frame)
-                    base[i] = blue
-                    base[i + 1] = green
-                    base[i + 2] = red
-                    base[i + 3] = 255
+            if hlg {
+                // Main10 HEVC expects 10-bit Y'CbCr, not the BGRA buffers
+                // used by the SDR fixtures. The HDR case uses neutral gray.
+                let yValue = UInt16(502 << 6)
+                let chromaValue = UInt16(512 << 6)
+                for plane in 0..<2 {
+                    let base = CVPixelBufferGetBaseAddressOfPlane(pixelBuffer, plane)!.assumingMemoryBound(to: UInt16.self)
+                    let rowWords = CVPixelBufferGetBytesPerRowOfPlane(pixelBuffer, plane) / MemoryLayout<UInt16>.size
+                    let rows = CVPixelBufferGetHeightOfPlane(pixelBuffer, plane)
+                    let words = CVPixelBufferGetWidthOfPlane(pixelBuffer, plane) * (plane == 0 ? 1 : 2)
+                    for y in 0..<rows {
+                        for x in 0..<words { base[y * rowWords + x] = plane == 0 ? yValue : chromaValue }
+                    }
+                }
+            } else {
+                let base = CVPixelBufferGetBaseAddress(pixelBuffer)!.assumingMemoryBound(to: UInt8.self)
+                let stride = CVPixelBufferGetBytesPerRow(pixelBuffer)
+                for y in 0..<180 {
+                    for x in 0..<320 {
+                        let i = y * stride + x * 4
+                        let (blue, green, red) = pixel(x, frame)
+                        base[i] = blue
+                        base[i + 1] = green
+                        base[i + 2] = red
+                        base[i + 3] = 255
+                    }
                 }
             }
             CVPixelBufferUnlockBaseAddress(pixelBuffer, [])
