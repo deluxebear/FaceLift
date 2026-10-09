@@ -135,3 +135,7 @@ FaceLift 分叉自 **AirCard v1.2.3**,原作者:
 ## 致谢
 - FaceLift 基于 **[AirCard v1.2.3](https://github.com/mak5er/AirCard)**,作者 **Johnny Franks (@Mak5er)**,遵循 MIT 协议授权。
 - 核心漏洞利用基于 `airlift`(AirTraffic 同步逃逸)。
+
+## 社区
+
+感谢 [LINUX DO](https://linux.do) 社区提供开放、友善的技术交流平台
