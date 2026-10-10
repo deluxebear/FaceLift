@@ -141,3 +141,7 @@ FaceLift is forked from **AirCard v1.2.3**, created by:
 ## Credits
 - FaceLift is based on **[AirCard v1.2.3](https://github.com/mak5er/AirCard)** by **Johnny Franks (@Mak5er)**, licensed under the MIT License.
 - Core exploit based on `airlift` (AirTraffic sync escape).
+
+## 社区
+
+感谢 [LINUX DO](https://linux.do) 社区提供开放、友善的技术交流平台
